@@ -1,0 +1,39 @@
+{
+  "compilerOptions": {
+    "target": "ES2015",
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "jsx": "preserve",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "resolveJsonModule": true,
+    "newLine": "LF",
+    "skipLibCheck": true,
+
+    "declaration": false,
+    "sourceMap": false,
+    "removeComments": false,
+
+    "strict": true,
+    "strictNullChecks": true,
+
+    "noImplicitOverride": true,
+    "noUnusedLocals": true,
+
+    "baseUrl": ".",
+    "types": [
+      "vite/client",
+    ],
+  },
+  "include": [
+    "packages",
+    "scripts"
+  ],
+  "exclude": [
+    "dist",
+    "node_modules",
+    "**/*.md",
+    "**/dist"
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "name": "@h21/playground",
+  "private": true,
+  "scripts": {
+    "dev": "vite"
+  }
+}
