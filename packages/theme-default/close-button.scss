@@ -27,7 +27,7 @@
     background-color: var(--bg-hover, rgba(0,0,0,.06));
   }
 
-  @include mixin.dark() {
-
+  svg {
+    display: block;
   }
 }

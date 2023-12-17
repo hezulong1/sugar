@@ -21,14 +21,11 @@
     "noImplicitOverride": true,
     "noUnusedLocals": true,
 
-    "baseUrl": ".",
-    "types": [
-      "vite/client",
-    ],
+    "baseUrl": "."
   },
   "include": [
     "packages",
-    "scripts"
+    "playground"
   ],
   "exclude": [
     "dist",

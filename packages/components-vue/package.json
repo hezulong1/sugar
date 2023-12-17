@@ -1,3 +1,4 @@
 {
-  "name": "@h21/components-vue"
+  "name": "@h21/components-vue",
+  "main": "index.ts"
 }

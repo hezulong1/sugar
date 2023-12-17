@@ -6,7 +6,9 @@
     "node": ">=18"
   },
   "devDependencies": {
+    "@vitejs/plugin-vue": "^4.5.2",
     "@vividcat/eslint-config": "^3.1.2",
+    "eslint": "8.51.0",
     "rollup": "^4.9.0",
     "rollup-plugin-dts": "^6.1.0",
     "rollup-plugin-esbuild": "^6.1.0",
@@ -23,7 +25,12 @@
       "dist"
     ],
     "rules": {
-      "spaced-comment": ["error", "always", { "exceptions": ["#__PURE__", "/"] }]
+      "spaced-comment": "off",
+      "@stylistic/js/spaced-comment": ["error", "always", {
+        "markers": ["/"],
+        "exceptions": ["#__PURE__", "@__PURE__"]
+      }],
+      "@stylistic/ts/brace-style": "off"
     }
   }
 }
