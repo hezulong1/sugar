@@ -1,7 +1,0 @@
-{
-  "name": "@h21/theme-default",
-  "main": "index.scss",
-  "exports": {
-    ".": "./index.scss"
-  }
-}
