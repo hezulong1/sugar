@@ -2,11 +2,13 @@
   "name": "h21sugar",
   "version": "0.0.0",
   "type": "module",
-  "packageManager": "pnpm@8.5.1",
   "main": "index.js",
   "types": "dist/h21sugar.d.ts",
   "unpkg": "dist/h21sugar.global.js",
   "jsdelivr": "dist/h21sugar.global.js",
+  "scripts": {
+    "dev": "vite"
+  },
   "files": [
     "index.js",
     "dist"
@@ -24,39 +26,21 @@
     "url": "https://github.com/hezulong1/sugar/issues"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=16"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^4.5.2",
-    "@vividcat/eslint-config": "^3.1.2",
-    "eslint": "8.51.0",
+    "eslint": "8.52.0",
+    "eslint-config-h21": "^0.1.0",
     "typescript": "^5.3.3",
     "vite": "^5.0.8",
     "vitest": "^1.0.4",
     "vue": "^3.3.11"
   },
   "eslintConfig": {
-    "extends": "@vividcat",
-    "ignorePatterns": [
-      "node_modules",
-      "dist"
-    ],
-    "rules": {
-      "spaced-comment": "off",
-      "@stylistic/js/spaced-comment": [
-        "error",
-        "always",
-        {
-          "markers": [
-            "/"
-          ],
-          "exceptions": [
-            "#__PURE__",
-            "@__PURE__"
-          ]
-        }
-      ],
-      "@stylistic/ts/brace-style": "off"
-    }
+    "extends": "h21"
+  },
+  "dependencies": {
+    "vue-demi": "^0.14.6"
   }
 }
