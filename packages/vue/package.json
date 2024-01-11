@@ -1,0 +1,10 @@
+{
+  "private": true,
+  "name": "@local/vue",
+  "peerDependencies": {
+    "vue": ">=3.3.11"
+  },
+  "devDependencies": {
+    "vue": "^3.4.8"
+  }
+}

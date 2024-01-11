@@ -1,0 +1,5 @@
+{
+  "private": true,
+  "name": "@local/shared",
+  "main": "index.ts"
+}
