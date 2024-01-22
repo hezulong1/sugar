@@ -5,11 +5,10 @@
     "module": "ESNext",
     "skipLibCheck": true,
 
-    "moduleResolution": "Bundler",
+    "moduleResolution": "Node",
     "resolveJsonModule": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
-    "jsx": "preserve",
 
     "declaration": false,
     "sourceMap": false,
@@ -18,15 +17,10 @@
     "strict": true,
     "noImplicitOverride": true,
     "noUnusedLocals": true,
-
-    "baseUrl": "."
   },
-  "include": [
-    "src"
-  ],
   "exclude": [
-    "dist",
-    "node_modules",
-    "**/*.md"
+    "**/dist/**",
+    "**/node_modules/**",
+    "scripts"
   ]
 }

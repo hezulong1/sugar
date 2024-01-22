@@ -1,16 +1,16 @@
-import { hasOwn, isObject, toTypeString } from '../base'
+import { hasOwn, isObject, toTypeString } from '../base';
 
-const SUPPORTS = [
+const SUPPORTS = new Set([
   'Number',
   'String',
   'Boolean',
-  'Null',
-  'Undefined',
   'Symbol',
   'BigInt',
+  'Null',
+  'Undefined',
   'Object',
   'Array',
-]
+]);
 /**
  * 复制一份数据，仅支持基础类型和[object Object]类型以及[object Array]类型，复杂的类型会给出警告
  *
@@ -29,32 +29,32 @@ const SUPPORTS = [
  * ... 不一一列举
  */
 export function copy<T = unknown>(source: T, silence = false): T {
-  let copyOne
+  let copyOne;
 
   if (isObject(source)) {
-    copyOne = {} as object
+    copyOne = {} as object;
     for (const key in source) {
       if (hasOwn(source, key)) {
-        copyOne[key] = copy(source[key], silence)
+        copyOne[key] = copy(source[key], silence);
       }
     }
   } else if (Array.isArray(source)) {
-    copyOne = [] as any[]
+    copyOne = [] as any[];
     for (const item of <any[]>source) {
-      copyOne.push(copy(item, silence))
+      copyOne.push(copy(item, silence));
     }
   } else {
-    const rawType = toTypeString(source).slice(8, -1)
-    if (SUPPORTS.includes(rawType)) {
-      copyOne = source
+    const rawType = toTypeString(source).slice(8, -1);
+    if (SUPPORTS.has(rawType)) {
+      copyOne = source;
     } else {
       silence !== true && console.warn(
         'Target %o is \'%s\' type, cannot be copied.',
         source,
         rawType,
-      )
+      );
     }
   }
 
-  return copyOne as T
+  return copyOne as T;
 }

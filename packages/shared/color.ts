@@ -1,4 +1,4 @@
-import { isKeyof } from './object'
+import { isKeyof } from './object';
 
 const Alias = {
   aliceblue: '#f0f8ff',
@@ -149,7 +149,7 @@ const Alias = {
   whitesmoke: '#f5f5f5',
   yellow: '#ffff00',
   yellowgreen: '#9acd32',
-} as const
+} as const;
 
 /**
  * 将十六进制颜色转换成 Rgb 对象
@@ -160,27 +160,27 @@ const Alias = {
  * @returns 非支持色彩将转换成白色
  */
 export function hexToRgbObject(color: string) {
-  color = color.replace('#', '')
+  color = color.replace('#', '');
 
-  if (/^[0-9a-fA-F]{3}$/.test(color)) {
-    const colorArray = color.split('')
+  if (/^[\dA-Fa-f]{3}$/.test(color)) {
+    const colorArray = color.split('');
     for (let i = 2; i >= 0; i--) {
-      colorArray.splice(i, 0, colorArray[i])
+      colorArray.splice(i, 0, colorArray[i]);
     }
-    color = colorArray.join('')
+    color = colorArray.join('');
   }
-  if (/^[0-9a-fA-F]{6}$/.test(color)) {
+  if (/^[\dA-Fa-f]{6}$/.test(color)) {
     return {
       red: Number.parseInt(color.slice(0, 2), 16),
       green: Number.parseInt(color.slice(2, 4), 16),
       blue: Number.parseInt(color.slice(4, 6), 16),
-    }
+    };
   } else {
     return {
       red: 255,
       green: 255,
       blue: 255,
-    }
+    };
   }
 }
 
@@ -194,12 +194,12 @@ export function hexToRgbObject(color: string) {
  * @returns 非支持色彩将转换成白色
  */
 export function hexToRgba(color: string, alpha = 1) {
-  const { red, green, blue } = hexToRgbObject(color)
-  alpha = +alpha
+  const { red, green, blue } = hexToRgbObject(color);
+  alpha = Number(alpha);
 
   return (alpha >= 1 || alpha < 0)
     ? `rgb(${Math.round(red)}, ${Math.round(green)}, ${Math.round(blue)})`
-    : `rgba(${Math.round(red)}, ${Math.round(green)}, ${Math.round(blue)}, ${alpha})`
+    : `rgba(${Math.round(red)}, ${Math.round(green)}, ${Math.round(blue)}, ${alpha})`;
 }
 
 /**
@@ -212,6 +212,6 @@ export function hexToRgba(color: string, alpha = 1) {
  * @returns 非支持色彩将转换成白色
  */
 export function rgba(color: string, alpha = 1) {
-  color = isKeyof(Alias, color) ? Alias[color] : color
-  return hexToRgba(color, alpha)
+  color = isKeyof(Alias, color) ? Alias[color] : color;
+  return hexToRgba(color, alpha);
 }

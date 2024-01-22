@@ -1,3 +1,3 @@
 export function isShadowRoot(node: Node): node is ShadowRoot {
-  return node && !!(<ShadowRoot>node).host && !!(<ShadowRoot>node).mode
+  return node && Boolean((<ShadowRoot>node).host) && Boolean((<ShadowRoot>node).mode);
 }
