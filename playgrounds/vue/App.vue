@@ -3,5 +3,5 @@ import { SugarToggle } from '@local/vue';
 </script>
 
 <template>
-  <SugarToggle :kind="1" as="span">click</SugarToggle>
+  <SugarToggle open-class="open" disabled as="span">Red</SugarToggle>
 </template>

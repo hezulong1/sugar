@@ -1,64 +1,54 @@
-import type { Component, ExtractPropTypes, PropType } from 'vue-demi';
+import type { Component, PropType } from 'vue-demi';
 import { defineComponent, ref, h, computed } from 'vue-demi';
-import { Keys } from '../../keyboard';
-import { UNDEFINED } from '../../const';
+import { Keys } from '../../utils/keyboard';
 
-export const enum SugarToggleKind {
-  Switch = 1,
-  Button,
-}
+export let ToggleImpl = defineComponent({
+  props: {
+    as: { type: [String, Object] as PropType<string | Component>, default: 'button' },
+    disabled: { type: Boolean },
+    openClass: { type: String },
+    modelValue: { type: Boolean, default: void 0 },
+    defaultChecked: { type: Boolean, default: void 0 },
+  },
 
-const SugarToggleProps = {
-  as: { type: <PropType<string | Component>>[String, Object], default: 'button' },
-  kind: { type: <PropType<SugarToggleKind>>Number, default: SugarToggleKind.Switch },
-  modelValue: { type: Boolean, default: UNDEFINED },
-  defaultValue: { type: Boolean, default: UNDEFINED },
-};
+  emits: ['update:modelValue', 'change'],
 
-export type SugarToggleProps = ExtractPropTypes<typeof SugarToggleProps>;
-export let SugarToggle = defineComponent({
-  name: 'SugarToggle',
-  props: SugarToggleProps,
-  setup(props, { emit, slots }) {
-    let internalChecked = ref(props.defaultValue);
+  setup(props, context) {
+    let internalChecked = ref(props.defaultChecked);
     let isControlled = computed(() => typeof props.modelValue !== 'undefined');
-    let checked = computed(() => (isControlled.value ? props.modelValue : internalChecked.value));
-    let klass = computed(() => {
-      if (!checked.value) return;
-      return props.kind === SugarToggleKind.Switch
-        ? 'checked'
-        : props.kind === SugarToggleKind.Button
-          ? 'pressed'
-          : UNDEFINED;
+    let checked = computed(() => isControlled.value ? props.modelValue : internalChecked.value);
+    let klass = computed(() => checked.value ? props.openClass : void 0);
+
+    context.expose({
+      toggle,
     });
 
-    const toggle = () => {
-      const nValue = !checked.value;
-      if (!isControlled.value) {
-        internalChecked.value = nValue;
-      }
+    function toggle() {
+      const current = !checked.value;
 
-      emit('update:modelValue', nValue);
-      emit('change', nValue);
-    };
+      if (!isControlled.value) internalChecked.value = current;
+
+      context.emit('update:modelValue', current);
+      context.emit('change', current);
+    }
 
     function handleClick(event: MouseEvent) {
+      if (props.disabled) return;
       event.preventDefault();
       toggle();
     }
 
-    function handleKeyUp(event: KeyboardEvent) {
+    function handleKeyup(event: KeyboardEvent) {
+      if (props.disabled) return;
       if (event.key === Keys.Space) {
         event.preventDefault();
         toggle();
       } else if (event.key === Keys.Enter) {
         toggle();
-        // attemptSubmit(event.currentTarget as HTMLElement);
       }
     }
 
-    // This is needed so that we can "cancel" the click event when we use the `Enter` key on a button.
-    function handleKeyPress(event: KeyboardEvent) {
+    function handleKeypress(event: KeyboardEvent) {
       event.preventDefault();
     }
 
@@ -67,10 +57,10 @@ export let SugarToggle = defineComponent({
       {
         class: klass.value,
         onClick: handleClick,
-        onKeyup: handleKeyUp,
-        onKeypress: handleKeyPress,
+        onKeyup: handleKeyup,
+        onKeypress: handleKeypress,
       },
-      slots['default']?.({ checked: Boolean(checked.value) }),
+      context.slots['default']?.({ checked: Boolean(checked.value) }),
     );
   },
 });
