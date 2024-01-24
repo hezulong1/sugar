@@ -1,7 +1,7 @@
 import { watch } from 'vue-demi';
-import type { MaybeRefOrGetter, IDisposable } from '../_utils/types';
-import { type MaybeElementRef, unrefElement } from '../_utils/unrefElement';
-import { tryOnScopeDispose } from './tryOnScopeDispose';
+import { type MaybeElementRef, type MaybeRefOrGetter, unrefElement } from '@vueuse/core';
+import { tryOnScopeDispose } from '@vueuse/shared';
+import { type IDisposable } from '../utils/disposable';
 
 export function useEventListener<K extends keyof GlobalEventHandlersEventMap>(target: MaybeRefOrGetter<EventTarget>, type: K, handler: (event: GlobalEventHandlersEventMap[K]) => void, useCapture?: boolean): IDisposable;
 export function useEventListener(target: MaybeRefOrGetter<EventTarget>, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;

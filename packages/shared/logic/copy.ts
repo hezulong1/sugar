@@ -1,4 +1,4 @@
-import { hasOwn, isObject, toTypeString } from '../base';
+import { hasOwn, isObject, toTypeString } from '..';
 
 const SUPPORTS = new Set([
   'Number',

@@ -1,4 +1,4 @@
-import { isUndefinedOrNull, toTypeString } from '../base'
+import { isUndefinedOrNull, toTypeString } from '..';
 
 /**
  * 支持类型 [
@@ -34,30 +34,30 @@ import { isUndefinedOrNull, toTypeString } from '../base'
  * isEmpty(new Set()) // set
  */
 export function isEmpty(val: unknown, silence = false) {
-  if (isUndefinedOrNull(val)) return true
-  if (Array.isArray(val)) return val.length === 0
+  if (isUndefinedOrNull(val)) return true;
+  if (Array.isArray(val)) return val.length === 0;
 
   const warn = () => {
-    silence !== true && console.warn(val, 'unable to confirm.')
-    return false
-  }
+    silence !== true && console.warn(val, 'unable to confirm.');
+    return false;
+  };
 
   switch (typeof val) {
     case 'string':
-      return val.trim() === ''
+      return val.trim() === '';
     case 'number':
-      return val === 0 || Number.isNaN(val)
+      return val === 0 || Number.isNaN(val);
     case 'boolean':
-      return val === false
+      return val === false;
     case 'bigint':
-      return val === BigInt(0)
+      return val === BigInt(0);
     case 'object':
       return ((val instanceof Set) || (val instanceof Map))
         ? val.size === 0
         : toTypeString(val) === '[object Object]'
           ? Object.keys(val as object).length === 0
-          : warn()
+          : warn();
     default:
-      return warn()
+      return warn();
   }
 }

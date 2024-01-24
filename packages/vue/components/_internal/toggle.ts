@@ -1,6 +1,6 @@
 import type { Component, PropType } from 'vue-demi';
 import { defineComponent, ref, h, computed } from 'vue-demi';
-import { Keys } from '../../utils/keyboard';
+import { KeyCode } from '../../utils/keyboard';
 
 export let ToggleImpl = defineComponent({
   props: {
@@ -40,10 +40,10 @@ export let ToggleImpl = defineComponent({
 
     function handleKeyup(event: KeyboardEvent) {
       if (props.disabled) return;
-      if (event.key === Keys.Space) {
+      if (event.key === KeyCode.Space) {
         event.preventDefault();
         toggle();
-      } else if (event.key === Keys.Enter) {
+      } else if (event.key === KeyCode.Enter) {
         toggle();
       }
     }

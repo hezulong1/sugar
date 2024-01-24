@@ -1,5 +1,7 @@
-import { toTypeString } from './toTypeString';
-import { hasOwn } from './hasOwn';
+const _hasOwn = Object.prototype.hasOwnProperty;
+export const hasOwn = (obj: object, key: PropertyKey): key is keyof typeof obj => _hasOwn.call(obj, key);
+export const toTypeString = (val: any) => Object.prototype.toString.call(val);
+export const noop = () => { /* nothing */ };
 
 export const isBoolean = (val: unknown): val is boolean => val === true || val === false;
 export const isDate = (val: unknown): val is Date => val instanceof Date;
@@ -18,9 +20,7 @@ export function isEmptyObject(obj: unknown): obj is object {
   if (!isObject(obj)) return false;
 
   for (const key in obj) {
-    if (hasOwn(obj, key)) {
-      return false;
-    }
+    if (hasOwn(obj, key)) return false;
   }
 
   return true;

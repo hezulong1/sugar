@@ -1,5 +1,9 @@
 {
   "private": true,
   "name": "@local/shared",
-  "main": "index.ts"
+  "exports": {
+    ".": "./index.ts",
+    "./env": "./env/index.ts",
+    "./logic": "./logic/index.ts"
+  }
 }

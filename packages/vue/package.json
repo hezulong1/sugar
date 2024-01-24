@@ -2,11 +2,11 @@
   "private": true,
   "name": "@local/vue",
   "main": "index.ts",
-  "peerDependencies": {
-    "vue": ">=3.3.11"
-  },
   "dependencies": {
-    "@vueuse/core": "^10.7.1"
+    "@local/shared": "workspace:*",
+    "@vueuse/core": "^10.7.1",
+    "@vueuse/shared": "^10.7.1",
+    "vue-demi": "^0.14.6"
   },
   "devDependencies": {
     "vue": "^3.4.8"

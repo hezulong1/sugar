@@ -4,9 +4,9 @@
  * @param search url-like 的字符串，默认是 location.href
  */
 export function getUrlParams(search = location.href) {
-  const index = search.indexOf('?')
-  const raw = search.slice(index + 1)
-  return ~index ? Object.fromEntries(new URLSearchParams(raw)) : {}
+  const index = search.indexOf('?');
+  const raw = search.slice(index + 1);
+  return ~index ? Object.fromEntries(new URLSearchParams(raw)) : {};
 }
 
 /**
@@ -17,9 +17,9 @@ export function getUrlParams(search = location.href) {
  * @returns 返回值已经被 `decodeURIComponent` 处理过
  */
 export function getUrlParamByName(name: string, search = location.href) {
-  const rx = new RegExp(`[?|&]${name}=([^&;]+?)(&|#|;|$)`)
-  const ar = rx.exec(search)
+  const rx = new RegExp(`[?|&]${name}=([^&;]+?)(&|#|;|$)`);
+  const ar = rx.exec(search);
   return (ar && ar.length > 1)
     ? decodeURIComponent(ar[1].replace(/\+/g, '%20'))
-    : null
+    : null;
 }

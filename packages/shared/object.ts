@@ -1,4 +1,4 @@
-import { hasOwn } from './base';
+import { hasOwn } from './basic';
 
 /**
  * 为了 TS 更好的提示

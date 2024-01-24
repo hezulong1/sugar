@@ -1,7 +1,7 @@
 /**
  * https://www.w3.org/TR/uievents-key/#named-key-attribute-values
  */
-export const enum Keys {
+export const enum KeyCode {
   ArrowLeft = 'ArrowLeft',
   ArrowUp = 'ArrowUp',
   ArrowRight = 'ArrowRight',

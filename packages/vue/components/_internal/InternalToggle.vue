@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { Component } from 'vue-demi';
 import { ref, computed } from 'vue-demi';
-import { Keys } from '../../utils/keyboard';
+import { KeyCode } from '../../utils/keyboard';
 
 const props = withDefaults(defineProps<{
   as: string | Component;
@@ -46,10 +46,10 @@ function handleClick(event: MouseEvent) {
 
 function handleKeyup(event: KeyboardEvent) {
   if (props.disabled) return;
-  if (event.key === Keys.Space) {
+  if (event.key === KeyCode.Space) {
     event.preventDefault();
     toggle();
-  } else if (event.key === Keys.Enter) {
+  } else if (event.key === KeyCode.Enter) {
     toggle();
   }
 }

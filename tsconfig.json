@@ -5,7 +5,7 @@
     "module": "ESNext",
     "skipLibCheck": true,
 
-    "moduleResolution": "Node",
+    "moduleResolution": "Bundler",
     "resolveJsonModule": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
@@ -17,10 +17,27 @@
     "strict": true,
     "noImplicitOverride": true,
     "noUnusedLocals": true,
+
+    "jsx": "preserve",
+    "jsxImportSource": "vue",
+    "isolatedModules": true,
+
+    "rootDir": ".",
+    "baseUrl": ".",
+    "paths": {
+      "@local/*": ["packages/*"]
+    }
   },
+  "include": [
+    "global.d.ts",
+    "packages/**/*.ts",
+    "packages/**/*.vue",
+    "playgrounds/**/*.ts",
+    "playgrounds/**/*.vue"
+  ],
   "exclude": [
-    "**/dist/**",
-    "**/node_modules/**",
+    "**/dist",
+    "node_modules",
     "scripts"
   ]
 }

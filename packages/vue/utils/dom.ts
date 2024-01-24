@@ -103,10 +103,10 @@ export function getDomNodePagePosition(domNode: HTMLElement): IDomNodePagePositi
   };
 }
 
-export function getWindow(element: Node): Window & typeof globalThis;
-export function getWindow(event: UIEvent): Window & typeof globalThis;
-export function getWindow(obj: unknown): Window & typeof globalThis;
-export function getWindow(e: unknown): Window & typeof globalThis {
+export function getWindow(element: Node): Window;
+export function getWindow(event: UIEvent): Window;
+export function getWindow(obj: unknown): Window;
+export function getWindow(e: unknown): Window {
   const candidateNode = e as Node | undefined;
   if (candidateNode?.ownerDocument?.defaultView) {
     return candidateNode.ownerDocument.defaultView.window;
@@ -118,4 +118,20 @@ export function getWindow(e: unknown): Window & typeof globalThis {
   }
 
   return window;
+}
+
+export function getActiveElement() {
+  let activeElement = document.activeElement;
+  while (activeElement?.shadowRoot) {
+    activeElement = activeElement.shadowRoot.activeElement;
+  }
+  return activeElement;
+}
+
+export function isActiveElement(element: Element): boolean {
+  return getActiveElement() === element;
+}
+
+export function isHTMLElement(node: unknown): node is HTMLElement {
+  return node instanceof HTMLElement;
 }

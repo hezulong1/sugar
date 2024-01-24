@@ -1,23 +1,20 @@
-import { isObject } from './base';
+import { isObject } from './basic';
 import type { MaybeArray } from './types';
 
-const camelizeRE = /-(\w)/g;
 export function camelize(str: string) {
-  return str.replace(camelizeRE, (_, letter) => (letter ? letter.toUpperCase() : ''));
+  return str.replace(/-(\w)/g, (_, letter) => (letter ? letter.toUpperCase() : ''));
 }
 
-const camelizeStrictRE = /([ :-_]+(.))/g;
-export function camelizeStrict(str: string) {
-  return str.replace(camelizeStrictRE, (_, __, letter, offset) => (offset ? letter.toUpperCase() : letter));
+export function camelizePlus(str: string) {
+  return str.replace(/([ :-_]+(.))/g, (_, __, letter, offset) => (offset ? letter.toUpperCase() : letter));
 }
 
 export function capitalize(str: string) {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
-const hyphenateRE = /\B([A-Z])/g;
 export function hyphenate(str: string) {
-  return str.replace(hyphenateRE, '-$1').toLowerCase();
+  return str.replace(/\B([A-Z])/g, '-$1').toLowerCase();
 }
 
 export function stringToLines(str: string) {
