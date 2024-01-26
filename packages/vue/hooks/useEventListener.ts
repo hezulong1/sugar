@@ -7,12 +7,12 @@ export function useEventListener<K extends keyof GlobalEventHandlersEventMap>(ta
 export function useEventListener(target: MaybeRefOrGetter<EventTarget>, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
 export function useEventListener(target: MaybeRefOrGetter<EventTarget>, type: string, handler: (event: any) => void, options: AddEventListenerOptions): IDisposable;
 export function useEventListener(target: MaybeRefOrGetter<EventTarget>, type: string, handler: (event: any) => void, useCaptureOrOptions?: boolean | AddEventListenerOptions): IDisposable {
-  let _toDisposed: IDisposable | null;
+  let _toCleanup: IDisposable | null;
 
   const cleanup = () => {
-    if (_toDisposed) {
-      _toDisposed.dispose();
-      _toDisposed = null;
+    if (_toCleanup) {
+      _toCleanup.dispose();
+      _toCleanup = null;
     }
   };
 
@@ -24,7 +24,7 @@ export function useEventListener(target: MaybeRefOrGetter<EventTarget>, type: st
       if (!el) return;
 
       el.addEventListener(type, handler, useCaptureOrOptions);
-      _toDisposed = {
+      _toCleanup = {
         dispose: () => el.removeEventListener(type, handler, useCaptureOrOptions),
       };
     },

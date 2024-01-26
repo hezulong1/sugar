@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import type { CSSProperties } from 'vue';
-import { computed } from 'vue';
-import { useTimeoutFn } from '@vueuse/shared';
+import { useIntervalFn } from '@vueuse/core';
+import type { CSSProperties } from 'vue-demi';
+import { computed } from 'vue-demi';
 
 const props = defineProps<{
   className: string;
@@ -71,36 +71,39 @@ const arrowStyle = computed<CSSProperties>(() => {
   return s;
 });
 
-let pointerdownRepeatTimer = useIntervalFn(() => {
+const { pause, resume, isActive } = useIntervalFn(() => emit('activate'), 1000 / 24, { immediate: false, immediateCallback: false });
 
-});
-
-let pointerdownRepeatTimer = new IntervalTimer();
-let pointerdownScheduleRepeatTimer = new TimeoutTimer();
-
-tryOnScopeDispose(() => {
-  pointerdownRepeatTimer.dispose();
-  pointerdownScheduleRepeatTimer.dispose();
-});
-
+let token: ReturnType<typeof setTimeout> = -1;
 function onPointerDown(e: PointerEvent) {
-  if (!e.target || !(e.target instanceof Element)) return;
-
-  const scheduleRepeater = () => {
-    pointerdownRepeatTimer.cancelAndSet(() => emit('activate'), 1000 / 24);
-  };
+  if (!e.target || !(e.target instanceof HTMLElement)) return;
 
   emit('activate');
-  pointerdownRepeatTimer.cancel();
 
-  useTimeoutFn();
-  pointerdownScheduleRepeatTimer.cancelAndSet(scheduleRepeater, 200);
+  if (isActive.value) {
+    pause();
+  }
+
+  if (token !== -1) {
+    clearTimeout(token);
+    token = -1;
+  }
+
+  token = setTimeout(resume, 200);
 
   e.preventDefault();
+}
+
+function onPointerup(e: PointerEvent) {
+  pause();
+
+  if (token !== -1) {
+    clearTimeout(token);
+    token = -1;
+  }
 }
 </script>
 
 <template>
-  <div class="arrow-background" :style="bgStyle" @pointerdown="onPointerDown" />
-  <div :class="className" :style="arrowStyle" @pointerdown="onPointerDown"><slot /></div>
+  <div class="arrow-background" :style="bgStyle" @pointerdown="onPointerDown" @pointerup="onPointerup" />
+  <div :class="className" :style="arrowStyle" @pointerdown="onPointerDown" @pointerup="onPointerup"><slot /></div>
 </template>
