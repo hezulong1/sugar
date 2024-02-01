@@ -6,9 +6,6 @@
   "types": "dist/h21sugar.d.ts",
   "unpkg": "dist/h21sugar.global.js",
   "jsdelivr": "dist/h21sugar.global.js",
-  "scripts": {
-    "dev": "vite"
-  },
   "files": [
     "index.js",
     "dist"
@@ -38,7 +35,17 @@
   "eslintConfig": {
     "extends": "h21",
     "rules": {
-      "no-undefined": 0
+      "no-undefined": 0,
+      "@stylistic/indent-binary-ops": 0,
+      "@stylistic/operator-linebreak": [2, "after", {
+        "overrides": {
+          "?": "before",
+          ":": "before",
+          "&&": "ignore",
+          "||": "ignore"
+        }
+      }],
+      "unicorn/prefer-math-trunc": 0
     }
   }
 }

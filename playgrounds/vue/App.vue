@@ -1,15 +1,21 @@
 <script setup lang="ts">
-import { ScrollbarArrow } from '@local/vue';
+import { ScrollbarArrow, ArrowUp, ArrowDown } from '@local/vue';
 
-function handleActivate() {
-  console.log('handleActivate');
+function handleActivate(type: string) {
+  console.log('handleActivate' + type);
 }
 </script>
 
 <template>
-  <ScrollbarArrow class-name="scra scra-h-start" :bg-width="11" :bg-height="11" @activate="handleActivate">
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M10.4405 2L11.0002 2.41344L11.0002 13.6067L10.461 14L5.00024 8.37311L5.00024 7.54622L10.4405 2Z" fill="#424242" />
-    </svg>
-  </ScrollbarArrow>
+  <div style="position: relative; block-size: 16px; inline-size: 16px; margin-block-end: 20px;">
+    <ScrollbarArrow class-name="scra" :bg-width="11" :bg-height="11" @activate="handleActivate('Up')">
+      <ArrowUp />
+    </ScrollbarArrow>
+  </div>
+
+  <div style="position: relative; block-size: 16px; inline-size: 16px; ">
+    <ScrollbarArrow class-name="scra" :bg-width="11" :bg-height="11" @activate="handleActivate('Down')">
+      <ArrowDown />
+    </ScrollbarArrow>
+  </div>
 </template>

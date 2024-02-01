@@ -1,1 +1,1 @@
-export { ScrollbarArrow } from './components/scrollbar';
+export * from './components/scrollbar';

@@ -1,21 +1,26 @@
 <script setup lang="ts">
-import { useIntervalFn } from '@vueuse/core';
-import type { CSSProperties } from 'vue-demi';
-import { computed } from 'vue-demi';
+import { useIntervalFn, useTimeoutFn, noop } from '@vueuse/core';
+import { type CSSProperties, computed } from 'vue-demi';
+import { usePointerMove } from '../../hooks/usePointerMove';
 
-const props = defineProps<{
+export interface ScrollbarArrowOptions {
   className: string;
+
   bgWidth: number;
   bgHeight: number;
-  top?: number;
-  right?: number;
-  bottom?: number;
-  left?: number;
-}>();
 
-const emit = defineEmits<{
+  top?: number;
+  left?: number;
+  bottom?: number;
+  right?: number;
+}
+
+export interface ScrollbarArrowEmits {
   (e: 'activate'): void;
-}>();
+}
+
+const props = defineProps<ScrollbarArrowOptions>();
+const emit = defineEmits<ScrollbarArrowEmits>();
 
 const ARROW_IMG_SIZE = 11;
 
@@ -71,39 +76,29 @@ const arrowStyle = computed<CSSProperties>(() => {
   return s;
 });
 
-const { pause, resume, isActive } = useIntervalFn(() => emit('activate'), 1000 / 24, { immediate: false, immediateCallback: false });
+const pointerMoveMonitor = usePointerMove();
+const repeatTimer = useIntervalFn(() => emit('activate'), 1000 / 24, { immediate: false, immediateCallback: false });
+const scheduleRepeatTimer = useTimeoutFn(repeatTimer.resume, 200, { immediate: false });
 
-let token: ReturnType<typeof setTimeout> = -1;
 function onPointerDown(e: PointerEvent) {
-  if (!e.target || !(e.target instanceof HTMLElement)) return;
+  if (!e.target || !(e.target instanceof Element)) return;
 
   emit('activate');
 
-  if (isActive.value) {
-    pause();
-  }
+  if (repeatTimer.isActive.value) repeatTimer.pause();
+  if (scheduleRepeatTimer.isPending.value) scheduleRepeatTimer.stop();
 
-  if (token !== -1) {
-    clearTimeout(token);
-    token = -1;
-  }
-
-  token = setTimeout(resume, 200);
+  scheduleRepeatTimer.start();
+  pointerMoveMonitor.start(e.target, e.pointerId, e.buttons, noop, () => {
+    repeatTimer.pause();
+    scheduleRepeatTimer.stop();
+  });
 
   e.preventDefault();
-}
-
-function onPointerup(e: PointerEvent) {
-  pause();
-
-  if (token !== -1) {
-    clearTimeout(token);
-    token = -1;
-  }
 }
 </script>
 
 <template>
-  <div class="arrow-background" :style="bgStyle" @pointerdown="onPointerDown" @pointerup="onPointerup" />
-  <div :class="className" :style="arrowStyle" @pointerdown="onPointerDown" @pointerup="onPointerup"><slot /></div>
+  <div class="arrow-background" :style="bgStyle" @pointerdown="onPointerDown" />
+  <div :class="className" :style="arrowStyle" @pointerdown="onPointerDown"><slot /></div>
 </template>
