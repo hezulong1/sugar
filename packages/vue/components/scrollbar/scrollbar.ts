@@ -1,47 +1,27 @@
-import { defineComponent, h, inject, ref } from 'vue';
-import { getDomNodePagePosition } from '../../utils/dom';
-import { scrollbarHostKey } from './constant';
+import { ref } from 'vue-demi';
+import type { ScrollbarVisibility } from './scrollable';
+import { useScrollbarVisiblityController } from './scrollbarVisibilityController';
 
-export let ScrollbarImpl = defineComponent({
-  props: {
-    lazyRender: Boolean,
-    scrollByPage: Boolean,
-    vertical: Boolean,
-    arrow: Boolean,
-  },
+/**
+ * The orthogonal distance to the slider at which dragging "resets". This implements "snapping"
+ */
+export const POINTER_DRAG_RESET_DISTANCE = 140;
 
-  setup(props) {
-    const root = ref<HTMLElement>();
-    const scrollbarHost = inject(scrollbarHostKey);
+export interface ScrollbarOptions {
+  vertical: boolean;
+  visibility?: ScrollbarVisibility;
+  hasArrows?: boolean;
+  arrowSize?: number;
+  scrollByPage?: boolean;
+}
 
-    function handlePointerDown(e: PointerEvent) {
-      if (!(root.value instanceof HTMLElement)) return;
-      if (e.target !== root.value) return;
+export interface UseAbstractScrollbarOptions {
+  visibility: ScrollbarVisibility;
+  visibleClassName: string;
+  invisibleClassName: string;
+}
 
-      let offsetX: number;
-      let offsetY: number;
-
-      if (typeof e.offsetX === 'number' && typeof e.offsetY === 'number') {
-        offsetX = e.offsetX;
-        offsetY = e.offsetY;
-      } else {
-        const domNodePosition = getDomNodePagePosition(root.value);
-        offsetX = e.pageX - domNodePosition.left;
-        offsetY = e.pageY - domNodePosition.top;
-      }
-
-      const offset = props.vertical ? offsetY : offsetX;
-    }
-
-    return () => h(
-      'div',
-      {
-        ref: root,
-        role: 'presentation',
-        'aria-hidden': 'true',
-        style: 'position: absolute',
-        onPointerdown: handlePointerDown,
-      },
-    );
-  },
-});
+export function useAbstractScrollbar(opts: UseAbstractScrollbarOptions) {
+  const visibility = ref(opts.visibility);
+  const visibilityController = useScrollbarVisiblityController(visibility, 'scrollbar visible', 'scrollbar invisible');
+}

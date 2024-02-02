@@ -2,27 +2,10 @@
 import { useIntervalFn, useTimeoutFn, noop } from '@vueuse/core';
 import { type CSSProperties, computed } from 'vue-demi';
 import { usePointerMove } from '../../hooks/usePointerMove';
-
-export interface ScrollbarArrowOptions {
-  className: string;
-
-  bgWidth: number;
-  bgHeight: number;
-
-  top?: number;
-  left?: number;
-  bottom?: number;
-  right?: number;
-}
-
-export interface ScrollbarArrowEmits {
-  (e: 'activate'): void;
-}
+import { ARROW_IMG_SIZE, type ScrollbarArrowOptions, type ScrollbarArrowEmits } from './arrow';
 
 const props = defineProps<ScrollbarArrowOptions>();
 const emit = defineEmits<ScrollbarArrowEmits>();
-
-const ARROW_IMG_SIZE = 11;
 
 const bgStyle = computed<CSSProperties>(() => {
   const s: CSSProperties = {
