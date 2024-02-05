@@ -1,5 +1,5 @@
 import type { AnyFn, ConfigurableWindow } from '@vueuse/core';
-import { useEventListener, tryOnScopeDispose } from '@vueuse/core';
+import { useEventListener, tryOnScopeDispose, defaultWindow } from '@vueuse/core';
 import { computed, readonly, shallowRef } from 'vue-demi';
 
 export interface IOnMoveCallback {
@@ -13,7 +13,7 @@ export interface IOnStopCallback {
 export interface UsePointerMoveOptions extends ConfigurableWindow {}
 
 export function usePointerMove(options: UsePointerMoveOptions = {}) {
-  const { window: defaultWindow } = options;
+  const { window = defaultWindow } = options;
 
   let _hooks = new Set<AnyFn>();
 
@@ -92,7 +92,7 @@ export function usePointerMove(options: UsePointerMoveOptions = {}) {
       });
     } catch (err) {
       // DOMException: Failed to execute 'setPointerCapture' on 'Element'
-      eventSource = defaultWindow;
+      eventSource = window;
     }
 
     if (!eventSource) return;
