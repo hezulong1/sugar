@@ -18,9 +18,9 @@ export default defineConfig({
     },
     minify: false,
   },
-  optimizeDeps: {
-    exclude: [
-      'vue-demi',
-    ],
-  },
+  // optimizeDeps: {
+  //   exclude: [
+  //     'vue-demi',
+  //   ],
+  // },
 });
