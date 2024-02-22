@@ -7,7 +7,7 @@ import ScrollbarArrow from './scrollbarArrow.vue';
 import { ARROW_IMG_SIZE } from './scrollbarArrow';
 
 const props = withDefaults(defineProps<ScrollbarOptions>(), {
-  arrowSize: 0,
+  arrowSize: 11,
 });
 
 const visibility = computed(() => props.visibility);

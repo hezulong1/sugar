@@ -1,4 +1,4 @@
-import { toRef, toValue, useTimeoutFn } from '@vueuse/core';
+import { toValue, useTimeoutFn } from '@vueuse/core';
 import { type MaybeRefOrGetter, computed, readonly, ref, watch } from 'vue-demi';
 import { ScrollbarVisibility } from './scrollable';
 
@@ -59,7 +59,7 @@ export function useScrollbarVisiblityController(
     }
   }
 
-  watch(toRef(visibility), _updateShouldBeVisible, { flush: 'post' });
+  watch(() => toValue(visibility), _updateShouldBeVisible);
 
   function setIsNeeded(isNeeded: boolean) {
     if (_isNeeded !== isNeeded) {

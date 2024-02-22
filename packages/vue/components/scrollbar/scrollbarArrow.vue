@@ -83,5 +83,5 @@ function onPointerDown(e: PointerEvent) {
 
 <template>
   <div class="arrow-background" :style="bgStyle" @pointerdown="onPointerDown" />
-  <div :class="className" :style="arrowStyle" @pointerdown="onPointerDown"><slot /></div>
+  <div :class="$attrs.class" :style="arrowStyle" @pointerdown="onPointerDown"><slot /></div>
 </template>

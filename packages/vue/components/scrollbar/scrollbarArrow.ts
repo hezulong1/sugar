@@ -4,8 +4,6 @@
 export const ARROW_IMG_SIZE = 11;
 
 export interface ScrollbarArrowOptions {
-  className: string;
-
   bgWidth: number;
   bgHeight: number;
 

@@ -121,6 +121,11 @@ export interface ScrollableElementCreationOptions {
   scrollByPage?: boolean;
 }
 
+export type ScrollableElementOptions = ScrollableElementCreationOptions & {
+  forceIntegerValues?: boolean;
+  smoothScrollDuration?: number;
+};
+
 export interface ScrollableElementChangeOptions {
   handleMouseWheel?: boolean;
   mouseWheelScrollSensitivity?: number;
