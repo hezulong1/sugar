@@ -1,5 +1,23 @@
 <script setup lang="ts">
-import { ScrollableElement } from '@local/vue';
+import type { ScrollEvent } from '@local/vue';
+import { ScrollableElement, useScrollable, scheduleAtNextAnimationFrame } from '@local/vue';
+
+const onScroll = (e: ScrollEvent) => {
+  console.log(e);
+};
+const scrollable = useScrollable({
+  onScroll,
+  scheduleAtNextAnimationFrame,
+  smoothScrollDuration: 125,
+});
+
+scrollable.setScrollDimensions({
+  width: 320,
+  height: 200,
+  scrollWidth: 400,
+  scrollHeight: 1200,
+}, false);
+scrollable.setScrollPositionSmooth({ scrollTop: 200 });
 </script>
 
 <template>

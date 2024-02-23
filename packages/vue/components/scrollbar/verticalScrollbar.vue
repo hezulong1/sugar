@@ -89,7 +89,7 @@ function _sliderPointerDown(e: PointerEvent) {
 
       if (isWindows && pointerOrthogonalDelta > POINTER_DRAG_RESET_DISTANCE) {
         // The pointer has wondered away from the scrollbar => reset dragging
-        _setDesiredScrollPositionNow(initialScrollbarState.getScrollPosition().value);
+        _setDesiredScrollPositionNow(initialScrollbarState.scrollPosition.value);
         return;
       }
 

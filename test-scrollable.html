@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+</head>
+<body>
+  <div id="app" style="width: 200px; height: 120px; border: 1px solid; overflow: hidden; position: relative">
+
+  </div>
+  <div id="result" style="width: 380px; height: 320px; border: 1px solid"></div>
+  <button type="button" id="run">run</button>
+  <button type="button" id="stop">stop</button>
+  <input type="number" id="percent" value="0" min="0" max="100">
+
+  <script>
+    const resultDomNode = document.querySelector('#result')
+    const runButton = document.querySelector('#run')
+    const stopButton = document.querySelector('#stop')
+    const percentButton = document.querySelector('#percent')
+
+    const appDomNode = document.querySelector('#app')
+    const wrapDomNode = document.createElement('div')
+    wrapDomNode.innerHTML = Array.from({ length: 99 }).map((_, i) => `<p style="white-space: nowrap; margin: 0 0 4px 0">${i}- Lorem ipsum dolor sit, amet consectetur adipisicing elit. Tenetur cumque nesciunt, sint maiores laborum aspernatur, deserunt esse veritatis deleniti optio culpa quibusdam excepturi sed? Autem quos repudiandae facilis similique iure.</p>`).join('')
+    appDomNode.appendChild(wrapDomNode)
+    wrapDomNode.style.position = 'relative'
+    wrapDomNode.style.contain = 'strict'
+    wrapDomNode.style.transform = 'translate3d(0px, 0px, 0px)'
+    wrapDomNode.style.width = wrapDomNode.scrollWidth + 'px'
+    wrapDomNode.style.height = wrapDomNode.scrollHeight + 'px'
+
+    const userAgent = navigator.userAgent
+    const isWindows = userAgent.includes('Windows')
+    const isMacintosh = userAgent.includes('Macintosh')
+
+    const isFirefox = /* @__PURE__ */ (userAgent.includes('Firefox'))
+    const isChrome = /* @__PURE__ */ (userAgent.includes('Chrome'))
+    const isSafari = /* @__PURE__ */ !isChrome && (userAgent.includes('Safari'))
+
+    // --
+    class StandardWheelEvent {
+
+      constructor(e, deltaX = 0, deltaY = 0) {
+        this.browserEvent = e || null
+        this.target = e ? (e.target || e.targetNode || e.srcElement) : null
+
+        this.deltaY = deltaY
+        this.deltaX = deltaX
+
+        if (e) {
+          // Old (deprecated) wheel events
+          const e1 = e
+          const e2 = e
+
+          // vertical delta scroll
+          if (typeof e1.wheelDeltaY !== 'undefined') {
+            this.deltaY = e1.wheelDeltaY / 120
+          } else if (typeof e2.VERTICAL_AXIS !== 'undefined' && e2.axis === e2.VERTICAL_AXIS) {
+            this.deltaY = -e2.detail / 3
+          } else if (e.type === 'wheel') {
+            // Modern wheel event
+            // https://developer.mozilla.org/en-US/docs/Web/API/WheelEvent
+            const ev = e
+
+            if (ev.deltaMode === ev.DOM_DELTA_LINE) {
+              // the deltas are expressed in lines
+              if (isFirefox && !isMacintosh) {
+                this.deltaY = -e.deltaY / 3
+              } else {
+                this.deltaY = -e.deltaY
+              }
+            } else {
+              this.deltaY = -e.deltaY / 40
+            }
+          }
+
+          // horizontal delta scroll
+          if (typeof e1.wheelDeltaX !== 'undefined') {
+            if (isSafari && isWindows) {
+              this.deltaX = -(e1.wheelDeltaX / 120)
+            } else {
+              this.deltaX = e1.wheelDeltaX / 120
+            }
+          } else if (typeof e2.HORIZONTAL_AXIS !== 'undefined' && e2.axis === e2.HORIZONTAL_AXIS) {
+            this.deltaX = -e.detail / 3
+          } else if (e.type === 'wheel') {
+            // Modern wheel event
+            // https://developer.mozilla.org/en-US/docs/Web/API/WheelEvent
+            const ev = e
+
+            if (ev.deltaMode === ev.DOM_DELTA_LINE) {
+              // the deltas are expressed in lines
+              if (isFirefox && !isMacintosh) {
+                this.deltaX = -e.deltaX / 3
+              } else {
+                this.deltaX = -e.deltaX
+              }
+            } else {
+              this.deltaX = -e.deltaX / 40
+            }
+          }
+
+          // Assume a vertical scroll if nothing else worked
+          if (this.deltaY === 0 && this.deltaX === 0 && e.wheelDelta) {
+            this.deltaY = e.wheelDelta / 120
+          }
+        }
+      }
+
+      preventDefault() {
+        this.browserEvent?.preventDefault()
+      }
+
+      stopPropagation() {
+        this.browserEvent?.stopPropagation()
+      }
+    }
+
+    // --
+
+    class AnimationFrameQueueItem {
+
+      constructor(runner, priority = 0) {
+        this._runner = runner
+        this.priority = priority
+        this._canceled = false
+      }
+
+      dispose() {
+        this._canceled = true
+      }
+
+      execute() {
+        if (this._canceled) {
+          return
+        }
+
+        try {
+          this._runner()
+        } catch (e) {
+          // onUnexpectedError(e)
+        }
+      }
+
+      // Sort by priority (largest to lowest)
+      static sort(a, b) {
+        return b.priority - a.priority
+      }
+    }
+
+    let NEXT_QUEUE = []
+    let CURRENT_QUEUE = null
+    let animFrameRequested = false
+
+    const animationFrameRunner = () => {
+      animFrameRequested = false
+
+      CURRENT_QUEUE = NEXT_QUEUE
+      NEXT_QUEUE = []
+
+      while (CURRENT_QUEUE.length > 0) {
+        CURRENT_QUEUE.sort(AnimationFrameQueueItem.sort)
+        const top = CURRENT_QUEUE.shift()
+        top.execute()
+      }
+    }
+
+    scheduleAtNextAnimationFrame = (runner, priority = 0) => {
+      const item = new AnimationFrameQueueItem(runner, priority)
+      NEXT_QUEUE.push(item)
+
+      if (!animFrameRequested) {
+        animFrameRequested = true
+        requestAnimationFrame(animationFrameRunner)
+      }
+
+      return item
+    }
+
+    // --
+
+    const easeInCubic = t => t ** 3
+    const easeOutCubic = t => 1 - easeInCubic(1 - t)
+    const createEaseOutCubic = (from, to) => (completion) => from + (to - from) * easeOutCubic(completion)
+    const createComposed = (a, b, cut) => (completion) => completion < cut ? a(completion / cut) : b((completion - cut) / (1 - cut))
+    const initAnimation = (from, to, viewportSize) => {
+      const delta = Math.abs(from - to)
+      if (delta > 2.5 * viewportSize) {
+        let stop1, stop2
+        if (from < to) {
+          // scroll to 75% of the viewportSize
+          stop1 = from + 0.75 * viewportSize
+          stop2 = to - 0.75 * viewportSize
+        } else {
+          stop1 = from - 0.75 * viewportSize
+          stop2 = to + 0.75 * viewportSize
+        }
+        return createComposed(createEaseOutCubic(from, stop1), createEaseOutCubic(stop2, to), 0.33)
+      }
+      return createEaseOutCubic(from, to)
+    }
+
+    const { width, height } = resultDomNode.getClientRects()[0]
+
+    class SmoothScrollingUpdate {
+      constructor(scrollLeft, scrollTop, isDone) {
+        this.scrollLeft = scrollLeft
+        this.scrollTop = scrollTop
+        this.isDone = isDone
+      }
+    }
+
+    class SmoothScrollingOperation {
+      constructor(from, to, startTime, duration) {
+        this.from = from
+        this.to = to
+        this.duration = duration
+        this.startTime = startTime
+
+        this.animationFrameDisposable = null
+
+        this._initAnimations()
+      }
+
+      _initAnimations() {
+        this.scrollLeft = initAnimation(this.from.scrollLeft, this.to.scrollLeft, this.to.width)
+        this.scrollTop = initAnimation(this.from.scrollTop, this.to.scrollTop, this.to.height)
+      }
+
+      dispose() {
+        if (this.animationFrameDisposable !== null) {
+          this.animationFrameDisposable.dispose()
+          this.animationFrameDisposable = null
+        }
+      }
+
+      tick() {
+        return this._tick(Date.now())
+      }
+
+      _tick(now) {
+        const completion = (now - this.startTime) / this.duration
+
+        if (completion < 1) {
+          const newScrollLeft = this.scrollLeft(completion)
+          const newScrollTop = this.scrollTop(completion)
+          return new SmoothScrollingUpdate(newScrollLeft, newScrollTop, false)
+        }
+
+        return new SmoothScrollingUpdate(this.to.scrollLeft, this.to.scrollTop, true)
+      }
+
+      combine(from, to, duration) {
+        return SmoothScrollingOperation.start(from, to, duration)
+      }
+
+      static start(from, to, duration) {
+        // +10 / -10 : pretend the animation already started for a quicker response to a scroll request
+        duration = duration + 10
+        const startTime = Date.now() - 10
+
+        return new SmoothScrollingOperation(from, to, startTime, duration)
+      }
+    }
+
+
+    const from = { scrollLeft: 0, scrollTop: 0, width, height }
+    const to = { scrollLeft: 0, scrollTop: 1000, width, height }
+    const smoothDuration = 2000
+
+    let scrollState = { scrollTop: 0, scrollLeft: 0, width, height }
+
+    let smoothScrolling
+
+    function getFutureScrollPosition() {
+      if (smoothScrolling) {
+        return smoothScrolling.to
+      }
+      return scrollState
+    }
+
+    function onWheel(evt) {
+      const e = new StandardWheelEvent(evt)
+
+      if (e.defaultPrevented) return
+
+      // console.log(`${Date.now()}, ${e.deltaY}, ${e.deltaX}`);
+
+      let { deltaX, deltaY } = e
+
+      const futureScrollPosition = getFutureScrollPosition()
+      const desiredScrollPosition = {}
+
+      if (deltaY) {
+        const deltaScrollTop = 50 * deltaY
+        const desiredScrollTop = futureScrollPosition.scrollTop - (deltaScrollTop < 0 ? Math.floor(deltaScrollTop) : Math.ceil(deltaScrollTop))
+        desiredScrollPosition.scrollTop = desiredScrollTop
+      }
+
+      if (deltaX) {
+        const deltaScrollLeft = 50 * deltaY
+        const desiredScrollLeft = futureScrollPosition.scrollLeft - (deltaScrollLeft < 0 ? Math.floor(deltaScrollLeft) : Math.ceil(deltaScrollLeft))
+        desiredScrollPosition.scrollLeft = desiredScrollLeft
+      }
+
+      if (futureScrollPosition.scrollLeft !== desiredScrollPosition.scrollLeft || futureScrollPosition.scrollTop !== desiredScrollPosition.scrollTop) {
+        setScrollPositionSmooth(desiredScrollPosition)
+      }
+
+      e.preventDefault()
+      e.stopPropagation()
+    }
+
+    function setScrollPositionSmooth(update) {
+      if (smoothScrolling) {
+        console.log('存在 smoothScrolling', update)
+        update = {
+          scrollLeft: (typeof update.scrollLeft === 'undefined' ? smoothScrolling.to.scrollLeft : update.scrollLeft),
+          scrollTop: (typeof update.scrollTop === 'undefined' ? smoothScrolling.to.scrollTop : update.scrollTop)
+        }
+
+        const validTarget = { ...update, width, height }
+
+        if (smoothScrolling.to.scrollLeft === validTarget.scrollLeft && smoothScrolling.to.scrollTop === validTarget.scrollTop) return
+
+        let newSmoothScrolling = smoothScrolling.combine(scrollState, validTarget, smoothDuration)
+
+        smoothScrolling.dispose()
+        smoothScrolling = newSmoothScrolling
+      } else {
+        const validTarget = { ...update, width, height }
+        console.log('新 smoothScrolling', validTarget)
+        smoothScrolling = SmoothScrollingOperation.start(scrollState, validTarget, smoothDuration)
+      }
+
+      smoothScrolling.animationFrameDisposable = scheduleAtNextAnimationFrame(() => {
+        if (!smoothScrolling) return
+
+        smoothScrolling.animationFrameDisposable = null
+        _performSmoothScrolling()
+      })
+    }
+
+    function _performSmoothScrolling() {
+      if (!smoothScrolling) return
+
+      const update = smoothScrolling.tick()
+      const newState =  { ...update, width, height }
+
+      setState(newState, true)
+
+      if (!smoothScrolling) return
+
+      if (update.isDone) {
+        smoothScrolling.dispose()
+        smoothScrolling = null
+      }
+
+      smoothScrolling.animationFrameDisposable = scheduleAtNextAnimationFrame(() => {
+        if (!smoothScrolling) return
+
+        smoothScrolling.animationFrameDisposable = null
+        _performSmoothScrolling()
+      })
+    }
+
+    const { clientWidth, clientHeight } = wrapDomNode
+    const clamp = (n, min, max) => Math.max(Math.min(max, n), min)
+
+    function setState(newState) {
+      scrollState = {
+        width,
+        height,
+        scrollLeft: clamp(newState.scrollLeft, 0, clientWidth - width),
+        scrollTop: clamp(newState.scrollTop, 0, clientWidth - width)
+      }
+      resultDomNode.textContent = `scrollLeft: ${scrollState.scrollLeft}, scrollTop: ${scrollState.scrollTop}`
+
+      wrapDomNode.style.left = -scrollState.scrollTop + 'px'
+    }
+
+    resultDomNode.addEventListener('wheel', onWheel, { passive: false })
+
+    // const animation = initAnimation(0, 1000, 200)
+
+    // percentButton.addEventListener('input', (e) => {
+    //   resultDomNode.textContent = animation(Number(e.target.value) / 100)
+    // }, false)
+
+
+
+    // function run() {
+    //   const update = smoothScrolling.tick()
+    //   if (update.isDone) {
+    //     stop()
+    //     return
+    //   }
+
+    //   resultDomNode.textContent = `scrollLeft: ${update.scrollLeft}, scrollTop: ${update.scrollTop}`
+
+    //   smoothScrolling.animationFrameDisposable = scheduleAtNextAnimationFrame(() => {
+    //     smoothScrolling.animationFrameDisposable = null
+    //     run()
+    //   })
+    // }
+
+    // function stop() {
+    //   smoothScrolling.animationFrameDisposable?.dispose()
+    //   smoothScrolling.animationFrameDisposable = null
+    // }
+
+    runButton.addEventListener('click', () => {
+      setScrollPositionSmooth(to)
+    }, false)
+    // stopButton.addEventListener('click', stop, false)
+  </script>
+</body>
+</html>

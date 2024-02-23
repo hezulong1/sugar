@@ -4,10 +4,12 @@ import { type Fn, useEventListener, useTimeoutFn, tryOnScopeDispose } from '@vue
 
 import { type ScrollableElementOptions } from './scrollableElementOptions';
 import HorizontalScrollbar from './horizontalScrollbar.vue';
-import { type INewScrollPosition, ScrollbarVisibility, useScrollable } from './scrollable';
+import { ScrollbarVisibility, useScrollable } from './scrollable';
+import type { ScrollEvent, INewScrollPosition } from './scrollable';
 import { HIDE_TIMEOUT, MouseWheelClassifier, SCROLL_WHEEL_SENSITIVITY, SCROLL_WHEEL_SMOOTH_SCROLL_ENABLED } from './scrollableElement';
 import { type IMouseWheelEvent, StandardWheelEvent } from '../../utils/mouseEvent';
 import { isMacintosh } from '../../utils/platform';
+import { scheduleAtNextAnimationFrame } from '../../utils/scheduleAtNextAnimationFrame';
 
 const props = withDefaults(defineProps<ScrollableElementOptions>(), {
   handleMouseWheel: true,
@@ -24,8 +26,15 @@ const props = withDefaults(defineProps<ScrollableElementOptions>(), {
   forceIntegerValues: true,
   smoothScrollDuration: 0,
 });
-debugger;
-const scrollable = useScrollable(props.smoothScrollDuration, props.forceIntegerValues);
+const onScroll = (e: ScrollEvent) => {
+  //
+};
+const scrollable = useScrollable({
+  onScroll,
+  scheduleAtNextAnimationFrame,
+  smoothScrollDuration: props.smoothScrollDuration,
+  forceIntegerValues: props.forceIntegerValues,
+});
 const domNodeRef = ref<HTMLElement>();
 const horizontalScrollbarRef = ref<InstanceType<typeof HorizontalScrollbar>>();
 const verticalScrollbarRef = ref<InstanceType<typeof HorizontalScrollbar>>();

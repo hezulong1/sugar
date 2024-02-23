@@ -1,2 +1,3 @@
 export { default as ScrollableElement } from './scrollableElement.vue';
-export * from './scrollbarVisibilityController';
+export * from './scrollable';
+export * from '../../utils/scheduleAtNextAnimationFrame';
