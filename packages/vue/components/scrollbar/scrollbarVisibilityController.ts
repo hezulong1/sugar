@@ -2,7 +2,7 @@ import { toValue, useTimeoutFn } from '@vueuse/core';
 import { type MaybeRefOrGetter, computed, readonly, ref, watch } from 'vue-demi';
 import { ScrollbarVisibility } from './scrollable';
 
-export function useScrollbarVisiblityController(
+export function useScrollbarVisibilityController(
   visibility: MaybeRefOrGetter<ScrollbarVisibility>,
   visibleClassName: MaybeRefOrGetter<string>,
   invisibleClassName: MaybeRefOrGetter<string>,

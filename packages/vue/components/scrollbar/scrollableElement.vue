@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watchEffect } from 'vue-demi';
-import { type Fn, useEventListener, useTimeoutFn, tryOnScopeDispose } from '@vueuse/core';
+import { computed, ref, shallowRef, watch, watchEffect } from 'vue-demi';
+import { type Fn, useEventListener, useTimeoutFn, tryOnScopeDispose, tryOnMounted } from '@vueuse/core';
 
 import { type ScrollableElementOptions } from './scrollableElementOptions';
-import HorizontalScrollbar from './horizontalScrollbar.vue';
-import { ScrollbarVisibility, useScrollable } from './scrollable';
-import type { ScrollEvent, INewScrollPosition } from './scrollable';
+
+// import HorizontalScrollbar from './horizontalScrollbar.vue';
+import VerticalScrollbar from './verticalScrollbar.vue';
+import { Scrollable, ScrollbarVisibility } from './scrollable';
+import type { ScrollEvent, INewScrollPosition, INewScrollDimensions } from './scrollable';
 import { HIDE_TIMEOUT, MouseWheelClassifier, SCROLL_WHEEL_SENSITIVITY, SCROLL_WHEEL_SMOOTH_SCROLL_ENABLED } from './scrollableElement';
 import { type IMouseWheelEvent, StandardWheelEvent } from '../../utils/mouseEvent';
 import { isMacintosh } from '../../utils/platform';
@@ -26,30 +28,32 @@ const props = withDefaults(defineProps<ScrollableElementOptions>(), {
   forceIntegerValues: true,
   smoothScrollDuration: 0,
 });
+const emit = defineEmits<{
+  (e: 'scroll', evt: ScrollEvent): void;
+}>();
+const domNodeRef = ref<HTMLElement>();
+const horizontalScrollbarRef = ref<InstanceType<typeof VerticalScrollbar>>();
+const verticalScrollbarRef = ref<InstanceType<typeof VerticalScrollbar>>();
+
+const revealOnScroll = ref(true);
+
 const onScroll = (e: ScrollEvent) => {
-  //
+  verticalScrollbarRef.value?.onDidScroll(e);
+  revealOnScroll.value && private_reveal();
+  emit('scroll', e);
 };
-const scrollable = useScrollable({
+const scrollable = ref(new Scrollable({
   onScroll,
   scheduleAtNextAnimationFrame,
   smoothScrollDuration: props.smoothScrollDuration,
   forceIntegerValues: props.forceIntegerValues,
-});
-const domNodeRef = ref<HTMLElement>();
-const horizontalScrollbarRef = ref<InstanceType<typeof HorizontalScrollbar>>();
-const verticalScrollbarRef = ref<InstanceType<typeof HorizontalScrollbar>>();
+}));
 
 const computedHorizontalScrollbarSize = computed(() => props.horizontal === ScrollbarVisibility.Hidden ? 0 : props.horizontalScrollbarSize);
-const computedHorizontalSliderSize = computed(() => typeof props.horizontalSliderSize !== 'undefined' ? props.horizontalSliderSize : props.horizontalScrollbarSize);
+// const computedHorizontalSliderSize = computed(() => typeof props.horizontalSliderSize !== 'undefined' ? props.horizontalSliderSize : props.horizontalScrollbarSize);
 
 const computedVerticalScrollbarSize = computed(() => props.vertical === ScrollbarVisibility.Hidden ? 0 : props.verticalScrollbarSize);
 const computedVerticalSliderSize = computed(() => typeof props.verticalSliderSize !== 'undefined' ? props.verticalSliderSize : props.verticalScrollbarSize);
-
-const horizontalScrollbarState = reactive({
-  visibleSize: 0,
-  scrollSize: 0,
-  scrollPosition: 0,
-});
 
 const listenOnDomNode = computed(() => props.listenOnDomNode ? props.listenOnDomNode : domNodeRef.value);
 
@@ -67,13 +71,43 @@ watchEffect(() => {
       _mouseWheelToDispose = useEventListener(listenOnDomNode, 'wheel', private_onMouseWheel, { passive: false });
     }
   }
+
+  console.log(scrollable.value._state);
 });
+
+// watch(() => props.smoothScrollDuration, (value) => {
+//   scrollable.value.setSmoothScrollDuration(value);
+// });
+
+// watch(() => [props.forceIntegerValues, props.smoothScrollDuration], () => {
+//   if (scrollable.value) {
+//     scrollable.value.dispose();
+//   }
+//   scrollable.value = new Scrollable({
+//     onScroll,
+//     scheduleAtNextAnimationFrame,
+//     forceIntegerValues: props.forceIntegerValues,
+//     smoothScrollDuration: props.smoothScrollDuration,
+//   });
+// });
 
 tryOnScopeDispose(() => {
   if (_mouseWheelToDispose) {
     _mouseWheelToDispose();
     _mouseWheelToDispose = null;
   }
+
+  if (scrollable.value) {
+    scrollable.value.dispose();
+  }
+});
+
+function setScrollDimensions(dimension: INewScrollDimensions) {
+  scrollable.value.setScrollDimensions(dimension, false);
+}
+
+defineExpose({
+  setScrollDimensions,
 });
 
 function private_onMouseWheel(originEvent: IMouseWheelEvent) {
@@ -128,7 +162,7 @@ function private_onMouseWheel(originEvent: IMouseWheelEvent) {
       deltaY = deltaY * props.fastScrollSensitivity;
     }
 
-    const futureScrollPosition = scrollable.getFutureScrollPosition();
+    const futureScrollPosition = scrollable.value.getFutureScrollPosition();
 
     let desiredScrollPosition: INewScrollPosition = {};
     if (deltaY) {
@@ -147,7 +181,7 @@ function private_onMouseWheel(originEvent: IMouseWheelEvent) {
     }
 
     // Check that we are scrolling towards a location which is valid
-    desiredScrollPosition = scrollable.validateScrollPosition(desiredScrollPosition);
+    desiredScrollPosition = scrollable.value.validateScrollPosition(desiredScrollPosition);
 
     if (futureScrollPosition.scrollLeft !== desiredScrollPosition.scrollLeft || futureScrollPosition.scrollTop !== desiredScrollPosition.scrollTop) {
       const canPerformSmoothScroll = (
@@ -157,9 +191,9 @@ function private_onMouseWheel(originEvent: IMouseWheelEvent) {
       );
 
       if (canPerformSmoothScroll) {
-        scrollable.setScrollPositionSmooth(desiredScrollPosition);
+        scrollable.value.setScrollPositionSmooth(desiredScrollPosition);
       } else {
-        scrollable.setScrollPositionNow(desiredScrollPosition);
+        scrollable.value.setScrollPositionNow(desiredScrollPosition);
       }
 
       didScroll = true;
@@ -185,15 +219,15 @@ const mouseIsOver = ref(false);
 const isDragging = ref(false);
 const hideTimer = useTimeoutFn(private_hide, HIDE_TIMEOUT, { immediate: false });
 
-function private_onDragStart() {
-  isDragging.value = true;
-  private_reveal();
-}
+// function private_onDragStart() {
+//   isDragging.value = true;
+//   private_reveal();
+// }
 
-function private_onDragEnd() {
-  isDragging.value = false;
-  private_hide();
-}
+// function private_onDragEnd() {
+//   isDragging.value = false;
+//   private_hide();
+// }
 
 function private_onMouseOver() {
   mouseIsOver.value = true;
@@ -207,12 +241,14 @@ function private_onMouseLeave() {
 
 function private_reveal() {
   horizontalScrollbarRef.value?.beginReveal();
+  verticalScrollbarRef.value?.beginReveal();
   private_scheduleHide();
 }
 
 function private_hide() {
   if (!mouseIsOver.value && !isDragging.value) {
     horizontalScrollbarRef.value?.beginHide();
+    verticalScrollbarRef.value?.beginHide();
   }
 }
 
@@ -227,18 +263,96 @@ function private_scheduleHide() {
   <div ref="domNodeRef" class="monaco-scrollable-element" role="presentation" style="position: relative; overflow: hidden;">
     <slot />
 
-    <HorizontalScrollbar
-      ref="horizontalScrollbarRef"
-      :visibility="horizontal"
-      :has-arrows="horizontalHasArrows"
+    <VerticalScrollbar
+      ref="verticalScrollbarRef"
+      :visibility="vertical"
+      :has-arrows="verticalHasArrows"
       :arrow-size="arrowSize"
-      :scrollbar-size="computedHorizontalScrollbarSize"
-      :opposite-scrollbar-size="computedVerticalScrollbarSize"
-      :slider-size="computedHorizontalSliderSize"
-      :visible-size="horizontalScrollbarState.visibleSize"
-      :scroll-size="horizontalScrollbarState.scrollSize"
-      :scroll-position="horizontalScrollbarState.scrollPosition"
+      :scrollbar-size="computedVerticalScrollbarSize"
+      :opposite-scrollbar-size="computedHorizontalScrollbarSize"
+      :slider-size="computedVerticalSliderSize"
+      :scrollable="scrollable"
       :scroll-by-page="scrollByPage"
     />
   </div>
 </template>
+
+<style>
+/* Arrows */
+.monaco-scrollable-element > .scrollbar > .scra {
+  cursor: pointer;
+  font-size: 11px !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.monaco-scrollable-element > .visible {
+  opacity: 1;
+
+  /* Background rule added for IE9 - to allow clicks on dom node */
+  background:rgba(0,0,0,0);
+
+  transition: opacity 100ms linear;
+  /* In front of peek view */
+  z-index: 11;
+}
+.monaco-scrollable-element > .invisible {
+  opacity: 0;
+  pointer-events: none;
+}
+.monaco-scrollable-element > .invisible.fade {
+  transition: opacity 800ms linear;
+}
+
+/* Scrollable Content Inset Shadow */
+.monaco-scrollable-element > .shadow {
+  position: absolute;
+  display: none;
+}
+.monaco-scrollable-element > .shadow.top {
+  display: block;
+  top: 0;
+  left: 3px;
+  height: 3px;
+  width: 100%;
+  box-shadow: var(--vscode-scrollbar-shadow) 0 6px 6px -6px inset;
+}
+.monaco-scrollable-element > .shadow.left {
+  display: block;
+  top: 3px;
+  left: 0;
+  height: 100%;
+  width: 3px;
+  box-shadow: var(--vscode-scrollbar-shadow) 6px 0 6px -6px inset;
+}
+.monaco-scrollable-element > .shadow.top-left-corner {
+  display: block;
+  top: 0;
+  left: 0;
+  height: 3px;
+  width: 3px;
+}
+.monaco-scrollable-element > .shadow.top.left {
+  box-shadow: var(--vscode-scrollbar-shadow) 6px 0 6px -6px inset;
+}
+
+.monaco-scrollable-element > .scrollbar > .slider {
+  background: var(--vscode-scrollbarSlider-background);
+}
+
+.monaco-scrollable-element > .scrollbar > .slider:hover {
+  background: var(--vscode-scrollbarSlider-hoverBackground);
+}
+
+.monaco-scrollable-element > .scrollbar > .slider.active {
+  background: var(--vscode-scrollbarSlider-activeBackground);
+}
+
+:root {
+  --vscode-scrollbar-shadow: #000000;
+  --vscode-scrollbarSlider-background: rgba(121, 121, 121, 0.4);
+  --vscode-scrollbarSlider-hoverBackground: rgba(100, 100, 100, 0.7);
+  --vscode-scrollbarSlider-activeBackground: rgba(191, 191, 191, 0.4);
+}
+</style>

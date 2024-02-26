@@ -45,7 +45,8 @@
           "||": "ignore"
         }
       }],
-      "unicorn/prefer-math-trunc": 0
+      "unicorn/prefer-math-trunc": 0,
+      "@typescript-eslint/no-shadow": 0
     }
   }
 }

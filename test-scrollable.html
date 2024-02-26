@@ -267,7 +267,7 @@
 
     const from = { scrollLeft: 0, scrollTop: 0, width, height }
     const to = { scrollLeft: 0, scrollTop: 1000, width, height }
-    const smoothDuration = 2000
+    const smoothDuration = 125
 
     let scrollState = { scrollTop: 0, scrollLeft: 0, width, height }
 
@@ -414,6 +414,11 @@
       setScrollPositionSmooth(to)
     }, false)
     // stopButton.addEventListener('click', stop, false)
+
+    requestAnimationFrame(() => {
+      console.log('in requestAnimationFrame')
+    })
+    console.log('out requestAnimationFrame')
   </script>
 </body>
 </html>

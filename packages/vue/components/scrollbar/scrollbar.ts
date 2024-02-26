@@ -1,8 +1,8 @@
 import { computed } from 'vue-demi';
 import { toValue, type MaybeRefOrGetter } from '@vueuse/core';
-import { useScrollbarVisiblityController } from './scrollbarVisibilityController';
+import { useScrollbarVisibilityController } from './scrollbarVisibilityController';
 import { useScrollbarState } from './scrollbarState';
-import type { INewScrollPosition, ScrollbarVisibility } from './scrollable';
+import type { INewScrollPosition, Scrollable, ScrollbarVisibility } from './scrollable';
 
 /**
  * The orthogonal distance to the slider at which dragging "resets". This implements "snapping"
@@ -18,9 +18,7 @@ export interface ScrollbarOptions {
   oppositeScrollbarSize: number;
   sliderSize: number;
 
-  visibleSize: number;
-  scrollSize: number;
-  scrollPosition: number;
+  scrollable: Scrollable;
 
   scrollByPage: boolean;
 }
@@ -29,8 +27,6 @@ export interface ScrollbarEmits {
   (e: 'hostMousewheel', deltaX: number, deltaY: number): void;
   (e: 'hostDragstart'): void;
   (e: 'hostDragend'): void;
-
-  (e: 'setScrollPositionNow', desiredScrollPosition: INewScrollPosition): void;
 }
 
 export interface UseAbstractScrollbarOptions {
@@ -52,7 +48,7 @@ export function useAbstractScrollbar(opts: UseAbstractScrollbarOptions) {
   const _scrollSize = computed(() => toValue(opts.scrollSize));
   const _scrollPosition = computed(() => toValue(opts.scrollPosition));
 
-  const controller = useScrollbarVisiblityController(_visibility, 'scrollbar visible', 'scrollbar invisible');
+  const controller = useScrollbarVisibilityController(_visibility, 'scrollbar visible', 'scrollbar invisible');
   const state = useScrollbarState(_arrowSize, _scrollbarSize, _oppositeScrollbarSize, _visibleSize, _scrollSize, _scrollPosition);
 
   return {
