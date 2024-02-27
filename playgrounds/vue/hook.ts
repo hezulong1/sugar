@@ -1,4 +1,4 @@
-import { toValue, computed, ref, watchEffect, watch } from 'vue';
+import { toValue, computed, ref, watchEffect, watch, readonly, onScopeDispose } from 'vue';
 import type { Ref, type MaybeRefOrGetter, reactive, UnwrapRef } from 'vue';
 
 export interface UseTestOptions {
@@ -24,26 +24,118 @@ export function useTest(n: MaybeRefOrGetter<number>, opts: UseTestOptions) {
   };
 }
 
+export interface UseRafFnCallbackArguments {
+  /**
+   * Time elapsed between this and the last frame.
+   */
+  delta: number;
+
+  /**
+   * Time elapsed since the creation of the web page. See {@link https://developer.mozilla.org/en-US/docs/Web/API/DOMHighResTimeStamp#the_time_origin Time origin}.
+   */
+  timestamp: DOMHighResTimeStamp;
+}
+
+export interface UseRafFnOptions {
+  /**
+   * Start the requestAnimationFrame loop immediately on creation
+   *
+   * @default true
+   */
+  immediate?: boolean;
+  /**
+   * The maximum frame per second to execute the function.
+   * Set to `undefined` to disable the limit.
+   *
+   * @default undefined
+   */
+  fpsLimit?: number;
+}
+
+export function useRafFn(fn: (args: UseRafFnCallbackArguments) => void, options: UseRafFnOptions = {}) {
+  const {
+    immediate = true,
+    fpsLimit,
+  } = options;
+
+  const isActive = ref(false);
+  const intervalLimit = fpsLimit ? 1000 / fpsLimit : null;
+  let previousFrameTimestamp = 0;
+  let rafId: null | number = null;
+
+  function loop(timestamp: DOMHighResTimeStamp) {
+    if (!isActive.value || !window) return;
+
+    const delta = timestamp - (previousFrameTimestamp || timestamp);
+
+    if (intervalLimit && delta < intervalLimit) {
+      rafId = window.requestAnimationFrame(loop);
+      return;
+    }
+
+    fn({ delta, timestamp });
+
+    previousFrameTimestamp = timestamp;
+    rafId = window.requestAnimationFrame(loop);
+  }
+
+  function resume() {
+    if (!isActive.value && window) {
+      isActive.value = true;
+      rafId = window.requestAnimationFrame(loop);
+    }
+  }
+
+  function pause() {
+    isActive.value = false;
+    if (rafId != null && window) {
+      window.cancelAnimationFrame(rafId);
+      rafId = null;
+    }
+  }
+
+  if (immediate) resume();
+
+  onScopeDispose(pause);
+
+  return {
+    isActive: readonly(isActive),
+    pause,
+    resume,
+  };
+}
+
 export function useScrollState(
   _forceIntegerValues: MaybeRefOrGetter<boolean>,
   widthMaybeRef: MaybeRefOrGetter<number>,
   scrollWidthMaybeRef: MaybeRefOrGetter<number>,
   scrollLeftMaybeRef: MaybeRefOrGetter<number>,
+  heightMaybeRef: MaybeRefOrGetter<number>,
+  scrollHeightMaybeRef: MaybeRefOrGetter<number>,
+  scrollTopMaybeRef: MaybeRefOrGetter<number>,
 ) {
   let rawScrollLeft = 0;
+  let rawScrollTop = 0;
 
   function update() {
     let width = toValue(widthMaybeRef);
     let scrollWidth = toValue(scrollWidthMaybeRef);
     let scrollLeft = toValue(scrollLeftMaybeRef);
+    let height = toValue(heightMaybeRef);
+    let scrollHeight = toValue(scrollHeightMaybeRef);
+    let scrollTop = toValue(scrollTopMaybeRef);
 
     if (toValue(_forceIntegerValues)) {
       width = width | 0;
       scrollWidth = scrollWidth | 0;
       scrollLeft = scrollLeft | 0;
+      height = height | 0;
+      scrollHeight = scrollHeight | 0;
+      scrollTop = scrollTop | 0;
     }
 
     rawScrollLeft = scrollLeft;
+    rawScrollTop = scrollTop;
 
     if (width < 0) {
       width = 0;
@@ -55,10 +147,20 @@ export function useScrollState(
       scrollLeft = 0;
     }
 
-    return [width, scrollWidth, scrollLeft];
+    if (height < 0) {
+      height = 0;
+    }
+    if (scrollTop + height > scrollHeight) {
+      scrollTop = scrollHeight - height;
+    }
+    if (scrollTop < 0) {
+      scrollTop = 0;
+    }
+
+    return [width, scrollWidth, scrollLeft, height, scrollHeight, scrollTop];
   }
 
-  const [width, scrollWidth, scrollLeft] = update();
+  const [width, scrollWidth, scrollLeft, height, scrollHeight, scrollTop] = update();
 
   const scrollEvent = ref({
     oldWidth: 0,
@@ -72,13 +174,36 @@ export function useScrollState(
     widthChanged: false,
     scrollWidthChanged: false,
     scrollLeftChanged: false,
+
+    oldHeight: 0,
+    oldScrollHeight: 0,
+    oldScrollTop: 0,
+
+    height,
+    scrollHeight,
+    scrollTop,
+
+    heightChanged: false,
+    scrollHeightChanged: false,
+    scrollTopChanged: false,
   });
 
   watchEffect(() => {
-    const { width: oldWidth, scrollWidth: oldScrollWidth, scrollLeft: oldScrollLeft } = scrollEvent.value;
-    const [width, scrollWidth, scrollLeft] = update();
+    const {
+      width: oldWidth, scrollWidth: oldScrollWidth, scrollLeft: oldScrollLeft,
+      height: oldHeight, scrollHeight: oldScrollHeight, scrollTop: oldScrollTop,
+    } = scrollEvent.value;
 
-    if (oldWidth === width && oldScrollWidth === scrollWidth && oldScrollLeft === scrollLeft) return;
+    const oldRawScrollLeft = rawScrollLeft;
+    const oldRawScrollTop = rawScrollTop;
+
+    const [width, scrollWidth, scrollLeft, height, scrollHeight, scrollTop] = update();
+
+    if (
+      oldRawScrollLeft === rawScrollLeft && oldRawScrollTop === rawScrollTop &&
+      oldWidth === width && oldScrollWidth === scrollWidth && oldScrollLeft === scrollLeft &&
+      oldHeight === height && oldScrollHeight === scrollHeight && oldScrollTop === scrollTop
+    ) return;
 
     scrollEvent.value = {
       oldWidth,
@@ -92,17 +217,32 @@ export function useScrollState(
       widthChanged: oldWidth !== width,
       scrollWidthChanged: oldScrollWidth !== scrollWidth,
       scrollLeftChanged: oldScrollLeft !== scrollLeft,
+
+      oldHeight,
+      oldScrollHeight,
+      oldScrollTop,
+
+      height,
+      scrollHeight,
+      scrollTop,
+
+      heightChanged: oldHeight !== height,
+      scrollHeightChanged: oldScrollHeight !== scrollHeight,
+      scrollTopChanged: oldScrollTop !== scrollTop,
     };
   });
 
   return {
     rawScrollLeft,
-    scrollEvent: computed(() => scrollEvent),
+    rawScrollTop,
+    scrollEvent: computed(() => scrollEvent.value),
   };
 }
 
 type UseScrollStateReturn = ReturnType<typeof useScrollState>;
-type ScrollEvent = UnwrapRef<UnwrapRef<UseScrollStateReturn['scrollEvent']>>;
+export type ScrollEvent = UnwrapRef<UseScrollStateReturn['scrollEvent']> & {
+  inSmoothScrolling: boolean;
+};
 
 export interface ISmoothScrollPosition {
   readonly scrollLeft: number;
@@ -201,40 +341,200 @@ export interface INewScrollPosition {
   scrollTop?: number;
 }
 
+class AnimationFrameQueueItem {
+  private _runner: () => void;
+  private _canceled: boolean;
+
+  constructor(runner: () => void) {
+    this._runner = runner;
+    this._canceled = false;
+  }
+
+  public dispose(): void {
+    this._canceled = true;
+  }
+
+  public execute(): void {
+    if (this._canceled) {
+      return;
+    }
+
+    try {
+      this._runner();
+    } catch (e) {
+      // onUnexpectedError(e)
+    }
+  }
+}
+
+let NEXT_QUEUE: AnimationFrameQueueItem[] = [];
+let CURRENT_QUEUE: AnimationFrameQueueItem[] | null = null;
+let animFrameRequested = false;
+
+const animationFrameRunner = () => {
+  animFrameRequested = false;
+
+  CURRENT_QUEUE = NEXT_QUEUE;
+  NEXT_QUEUE = [];
+
+  while (CURRENT_QUEUE.length > 0) {
+    const top = CURRENT_QUEUE.shift()!;
+    top.execute();
+  }
+};
+
+export function raf(runner: VoidFunction) {
+  const item = new AnimationFrameQueueItem(runner);
+  NEXT_QUEUE.push(item);
+
+  if (!animFrameRequested) {
+    animFrameRequested = true;
+    requestAnimationFrame(animationFrameRunner);
+  }
+
+  return () => item.dispose();
+}
+
 export function useScrollable(
   onScroll: (e: ScrollEvent) => void,
   _forceIntegerValues: boolean,
-  smoothScrollDuration: MaybeRefOrGetter<number>,
-  width: Ref<number>,
-  scrollWidth: Ref<number>,
-  scrollLeft: Ref<number>,
+  _smoothScrollDurationRef: MaybeRefOrGetter<number>,
+  _widthRef: MaybeRefOrGetter<number>,
+  _scrollWidthRef: MaybeRefOrGetter<number>,
+  _scrollLeftRef: MaybeRefOrGetter<number>,
+  _heightRef: MaybeRefOrGetter<number>,
+  _scrollHeightRef: MaybeRefOrGetter<number>,
+  _scrollTopRef: MaybeRefOrGetter<number>,
 ) {
-  const widthRef = computed(() => width.value);
-  const scrollWidthRef = computed(() => scrollWidth.value);
-  const scrollLeftRef = ref(scrollLeft.value);
+  const smoothScrollDurationRef = computed(() => toValue(_smoothScrollDurationRef));
+
+  const widthRef = computed(() => toValue(_widthRef));
+  const scrollWidthRef = computed(() => toValue(_scrollWidthRef));
+  const scrollLeftRef = ref(toValue(_scrollLeftRef));
+
+  const heightRef = computed(() => toValue(_heightRef));
+  const scrollHeightRef = computed(() => toValue(_scrollHeightRef));
+  const scrollTopRef = ref(toValue(_scrollTopRef));
 
   const { scrollEvent } = useScrollState(
     _forceIntegerValues,
     widthRef,
     scrollWidthRef,
     scrollLeftRef,
+    heightRef,
+    scrollHeightRef,
+    scrollTopRef,
   );
 
   function setScrollPositionNow(update: INewScrollPosition) {
+    if (typeof update.scrollLeft === 'number') {
+      scrollLeftRef.value = update.scrollLeft;
+    }
 
+    if (typeof update.scrollTop === 'number') {
+      scrollTopRef.value = update.scrollTop;
+    }
   }
 
-  function setScrollPositionSmooth(update: INewScrollPosition) {
+  const _from = ref<ISmoothScrollPosition>({
+    scrollLeft: scrollEvent.value.scrollLeft,
+    scrollTop: scrollEvent.value.scrollTop,
+    width: scrollEvent.value.width,
+    height: scrollEvent.value.height,
+  });
 
+  const _to = ref<ISmoothScrollPosition>({
+    scrollLeft: scrollEvent.value.scrollLeft,
+    scrollTop: scrollEvent.value.scrollTop,
+    width: scrollEvent.value.width,
+    height: scrollEvent.value.height,
+  });
+  const startTime = ref<number>(Date.now());
+  const inSmoothScrolling = ref(false);
+  const smoothScrollingTick = useSmoothScrolling(_from, _to, startTime, smoothScrollDurationRef);
+  // const rafController = useRafFn(() => _performSmoothScrolling(), { immediate: false });
+  let stopRaf: VoidFunction | null = null;
+
+  function setScrollPositionSmooth(update: INewScrollPosition) {
+    if (smoothScrollDurationRef.value === 0) {
+      return setScrollPositionNow(update);
+    }
+
+    if (stopRaf) {
+      update = {
+        scrollLeft: typeof update.scrollLeft === 'undefined' ? scrollLeftRef.value : update.scrollLeft,
+        scrollTop: typeof update.scrollTop === 'undefined' ? scrollTopRef.value : update.scrollTop,
+      };
+
+      console.log('存在', { ...update });
+
+      if (_to.value.scrollLeft === update.scrollLeft && _to.value.scrollTop === update.scrollTop) return;
+
+      _to.value = {
+        scrollLeft: update.scrollLeft!,
+        scrollTop: update.scrollTop!,
+        width: _to.value.width,
+        height: _to.value.height,
+      };
+
+      startTime.value = Date.now();
+
+      stopRaf();
+
+      // inSmoothScrolling.value = true;
+    } else {
+      console.log('新', { ...update });
+
+      _to.value = {
+        scrollLeft: typeof update.scrollLeft === 'number' ? update.scrollLeft : _to.value.scrollLeft,
+        scrollTop: typeof update.scrollTop === 'number' ? update.scrollTop : _to.value.scrollTop,
+        width: _to.value.width,
+        height: _to.value.height,
+      };
+
+      startTime.value = Date.now();
+
+      // inSmoothScrolling.value = true;
+    }
+
+    inSmoothScrolling.value = true;
+    stopRaf = raf(() => {
+      stopRaf = null;
+      _performSmoothScrolling();
+    });
+  }
+
+  function _performSmoothScrolling() {
+    if (!inSmoothScrolling.value) return;
+
+    const update = smoothScrollingTick();
+
+    console.log({ ...update });
+
+    scrollTopRef.value = update.scrollTop;
+    scrollLeftRef.value = update.scrollLeft;
+
+    if (update.isDone) {
+      inSmoothScrolling.value = false;
+      if (stopRaf) {
+        stopRaf();
+        stopRaf = null;
+      }
+      return;
+    }
+
+    stopRaf = raf(() => {
+      stopRaf = null;
+      _performSmoothScrolling();
+    });
   }
 
   function trigger(update: INewScrollPosition) {
-    if (typeof update.scrollLeft === 'undefined') return;
-    smoothScrollDuration === 0 ? setScrollPositionNow(update) : setScrollPositionSmooth(update);
+    smoothScrollDurationRef.value === 0 ? setScrollPositionNow(update) : setScrollPositionSmooth(update);
   }
 
-  watch(scrollEvent, () => {
-    onScroll?.(scrollEvent.value.value);
+  watch(scrollEvent, (e) => {
+    onScroll?.({ ...e, inSmoothScrolling: inSmoothScrolling.value });
   });
 
   return trigger;

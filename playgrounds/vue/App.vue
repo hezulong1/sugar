@@ -1,73 +1,72 @@
 <script setup lang="ts">
-import type { ScrollEvent } from '@local/vue';
-import { ScrollableElement } from '@local/vue';
-import type { CSSProperties } from 'vue';
-import { onMounted, reactive, ref } from 'vue';
-import { useScrollState } from './hook';
+import { ref } from 'vue';
+import { useScrollable, type ScrollEvent } from './hook';
 
-const containerRef = ref<InstanceType<typeof ScrollableElement>>();
-const contentRef = ref<HTMLElement>();
-const contentStyle = reactive<CSSProperties>({
-  top: '0px',
-  left: '0px',
-});
+const result = ref('');
 
 const forceIntegerValues = ref(true);
-const smoothScrollDuration = ref(0);
+const smoothScrollDuration = ref(2000);
+const width = ref(320);
+const scrollWidth = ref(400);
+const scrollLeft = ref(0);
+const height = ref(280);
+const scrollHeight = ref(8000);
+const scrollTop = ref(60);
 
-let widthRef = ref(200.3);
-let scrollWidthRef = ref(400.8);
-let scrollLeftRef = 0.3;
-
-const scrollEvent = useScrollState(
-  forceIntegerValues.value,
-  widthRef,
-  scrollWidthRef,
-  scrollLeftRef,
-);
+const startScrollTop = ref(0);
+const startScrollLeft = ref(0);
 
 const onScroll = (e: ScrollEvent) => {
-  if (e.scrollTopChanged) {
-    contentStyle.top = -1 * e.scrollTop + 'px';
-  }
-
-  if (e.scrollLeftChanged) {
-    contentStyle.left = -1 * e.scrollLeft + 'px';
-  }
+  result.value = JSON.stringify(e, null, 2);
+  startScrollTop.value = e.scrollTop;
+  startScrollLeft.value = e.scrollLeft;
 };
 
-onMounted(update);
+const trigger = useScrollable(
+  onScroll,
+  forceIntegerValues.value,
+  smoothScrollDuration,
+  width,
+  scrollWidth,
+  startScrollLeft,
+  height,
+  scrollHeight,
+  startScrollTop,
+);
 
-function update() {
-  if (!containerRef.value) return;
-  if (!contentRef.value) return;
+function onAdd() {
+  console.log('onAdd');
+  trigger({ scrollLeft: startScrollLeft.value || scrollLeft.value, scrollTop: startScrollTop.value || scrollTop.value });
+}
 
-  const { clientWidth, clientHeight } = containerRef.value.$el as HTMLElement;
-  const { scrollWidth, scrollHeight } = contentRef.value;
-
-  containerRef.value.setScrollDimensions({
-    width: clientWidth,
-    height: clientHeight,
-    scrollWidth,
-    scrollHeight,
-  });
+function onReset() {
+  startScrollTop.value = 0;
+  startScrollLeft.value = 0;
 }
 
 </script>
 
 <template>
-  <input v-model="smoothScrollDuration" type="number" min="0" max="125">
-  <input v-model="forceIntegerValues" type="checkbox">
+  <div>smoothScrollDuration: <input v-model="smoothScrollDuration" type="number" min="0" max="125"><input v-model="forceIntegerValues" type="checkbox"></div>
 
   <br>
 
-  <input v-model="widthRef" type="number" step="0.1" min="0">
-  <input v-model="scrollWidthRef" type="number" step="0.1" min="0">
-  <input v-model="scrollLeftRef" type="number" step="0.1" min="0">
-  {{ scrollEvent }}
-  <ScrollableElement ref="containerRef" class="container" :force-integer-values="forceIntegerValues" :smooth-scroll-duration="smoothScrollDuration" @scroll="onScroll">
-    <div ref="contentRef" class="monaco-list-rows" :style="contentStyle">
-      <div v-for="i of 100" :key="i" :style="`width: 350px; margin-block: 2px; border: ${ i % 2 ? '1px solid blue' : '1px solid red' }`">{{ i }}</div>
-    </div>
-  </ScrollableElement>
+  <label>width: <input v-model="width" type="number" step="0.1" min="0"></label>
+  <label>scrollWidth: <input v-model="scrollWidth" type="number" step="0.1" min="0"></label>
+  <label>scrollLeft: <input v-model="scrollLeft" type="number" step="0.1" min="0"></label>
+
+  <br>
+
+  <label>height: <input v-model="height" type="number" step="0.1" min="0"></label>
+  <label>scrollHeight: <input v-model="scrollHeight" type="number" step="0.1" min="0"></label>
+  <label>scrollTop: <input v-model="scrollTop" type="number" step="0.1" min="0"></label>
+
+  <br>
+  <div>
+    {{ startScrollTop }}
+  </div>
+  <button type="button" @click="onAdd">+</button>
+  <button type="button" @click="onReset">R</button>
+  <br>
+  <textarea v-model="result" style="margin-top: 20px; width: 340px; height: 320px" />
 </template>

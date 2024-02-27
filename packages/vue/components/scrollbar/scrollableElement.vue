@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, shallowRef, watch, watchEffect } from 'vue-demi';
+import { computed, onMounted, reactive, ref, watch, watchEffect } from 'vue-demi';
 import { type Fn, useEventListener, useTimeoutFn, tryOnScopeDispose, tryOnMounted } from '@vueuse/core';
 
 import { type ScrollableElementOptions } from './scrollableElementOptions';
@@ -7,7 +7,7 @@ import { type ScrollableElementOptions } from './scrollableElementOptions';
 // import HorizontalScrollbar from './horizontalScrollbar.vue';
 import VerticalScrollbar from './verticalScrollbar.vue';
 import { Scrollable, ScrollbarVisibility } from './scrollable';
-import type { ScrollEvent, INewScrollPosition, INewScrollDimensions } from './scrollable';
+import type { ScrollEvent, INewScrollPosition, INewScrollDimensions, IScrollDimensions, IScrollPosition } from './scrollable';
 import { HIDE_TIMEOUT, MouseWheelClassifier, SCROLL_WHEEL_SENSITIVITY, SCROLL_WHEEL_SMOOTH_SCROLL_ENABLED } from './scrollableElement';
 import { type IMouseWheelEvent, StandardWheelEvent } from '../../utils/mouseEvent';
 import { isMacintosh } from '../../utils/platform';
@@ -27,24 +27,38 @@ const props = withDefaults(defineProps<ScrollableElementOptions>(), {
 
   forceIntegerValues: true,
   smoothScrollDuration: 0,
+
+  autoResize: true,
+  revealOnScroll: true,
 });
 const emit = defineEmits<{
   (e: 'scroll', evt: ScrollEvent): void;
 }>();
+
 const domNodeRef = ref<HTMLElement>();
+const scrollDimension = reactive<Required<INewScrollDimensions>>({
+  width: 0,
+  scrollWidth: 0,
+  height: 0,
+  scrollHeight: 0,
+});
+const scrollPosition = reactive<IScrollPosition>({
+  scrollLeft: 0,
+  scrollTop: 0,
+});
+
 const horizontalScrollbarRef = ref<InstanceType<typeof VerticalScrollbar>>();
 const verticalScrollbarRef = ref<InstanceType<typeof VerticalScrollbar>>();
 
-const revealOnScroll = ref(true);
-
 const onScroll = (e: ScrollEvent) => {
   verticalScrollbarRef.value?.onDidScroll(e);
-  revealOnScroll.value && private_reveal();
+  props.revealOnScroll && private_reveal();
   emit('scroll', e);
 };
+
 const scrollable = ref(new Scrollable({
   onScroll,
-  scheduleAtNextAnimationFrame,
+  scheduleAtNextAnimationFrame: typeof props.scheduleAtNextAnimationFrame !== 'undefined' ? props.scheduleAtNextAnimationFrame : scheduleAtNextAnimationFrame,
   smoothScrollDuration: props.smoothScrollDuration,
   forceIntegerValues: props.forceIntegerValues,
 }));
@@ -55,14 +69,37 @@ const computedHorizontalScrollbarSize = computed(() => props.horizontal === Scro
 const computedVerticalScrollbarSize = computed(() => props.vertical === ScrollbarVisibility.Hidden ? 0 : props.verticalScrollbarSize);
 const computedVerticalSliderSize = computed(() => typeof props.verticalSliderSize !== 'undefined' ? props.verticalSliderSize : props.verticalScrollbarSize);
 
-const listenOnDomNode = computed(() => props.listenOnDomNode ? props.listenOnDomNode : domNodeRef.value);
+const listenOnDomNode = computed(() => typeof props.listenOnDomNode !== 'undefined' ? props.listenOnDomNode : domNodeRef.value);
 
 useEventListener(listenOnDomNode, 'mouseover', private_onMouseOver);
 useEventListener(listenOnDomNode, 'mouseleave', private_onMouseLeave);
 
 let _mouseWheelToDispose: Fn | null = null;
 
-watchEffect(() => {
+function dispose() {
+  if (scrollable.value) {
+    scrollable.value.dispose();
+  }
+
+  if (_mouseWheelToDispose) {
+    _mouseWheelToDispose();
+    _mouseWheelToDispose = null;
+  }
+}
+
+tryOnMounted(() => {
+  if (props.autoResize && domNodeRef.value) {
+    const domNodeRect = domNodeRef.value.getClientRects()[0];
+    scrollDimension.width = domNodeRect.width;
+    scrollDimension.height = domNodeRect.height;
+  }
+});
+
+tryOnScopeDispose(dispose);
+
+watchEffect((onCleanup) => {
+  onCleanup(dispose);
+
   if (props.handleMouseWheel && listenOnDomNode.value) {
     if (_mouseWheelToDispose) {
       _mouseWheelToDispose();
@@ -72,35 +109,28 @@ watchEffect(() => {
     }
   }
 
-  console.log(scrollable.value._state);
+  // console.log(scrollable.value._state);
 });
 
-// watch(() => props.smoothScrollDuration, (value) => {
-//   scrollable.value.setSmoothScrollDuration(value);
-// });
-
-// watch(() => [props.forceIntegerValues, props.smoothScrollDuration], () => {
-//   if (scrollable.value) {
-//     scrollable.value.dispose();
-//   }
-//   scrollable.value = new Scrollable({
-//     onScroll,
-//     scheduleAtNextAnimationFrame,
-//     forceIntegerValues: props.forceIntegerValues,
-//     smoothScrollDuration: props.smoothScrollDuration,
-//   });
-// });
-
-tryOnScopeDispose(() => {
-  if (_mouseWheelToDispose) {
-    _mouseWheelToDispose();
-    _mouseWheelToDispose = null;
-  }
-
-  if (scrollable.value) {
-    scrollable.value.dispose();
-  }
+watch(() => props.smoothScrollDuration, (value) => {
+  scrollable.value.setSmoothScrollDuration(value);
 });
+
+watch(
+  [props.scheduleAtNextAnimationFrame, props.forceIntegerValues],
+  () => {
+    if (scrollable.value) {
+      scrollable.value.dispose();
+    }
+
+    scrollable.value = new Scrollable({
+      onScroll,
+      scheduleAtNextAnimationFrame: props.scheduleAtNextAnimationFrame ?? scheduleAtNextAnimationFrame,
+      forceIntegerValues: props.forceIntegerValues,
+      smoothScrollDuration: props.smoothScrollDuration,
+    });
+  },
+);
 
 function setScrollDimensions(dimension: INewScrollDimensions) {
   scrollable.value.setScrollDimensions(dimension, false);

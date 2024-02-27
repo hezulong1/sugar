@@ -329,6 +329,9 @@ export interface IScrollableCallback {
 }
 
 export interface IScrollableOptions {
+  /**
+   * Callback
+   */
   onScroll: IScrollableCallback;
   /**
    * Define if the scroll values should always be integers.

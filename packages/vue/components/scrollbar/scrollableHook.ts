@@ -1,6 +1,7 @@
 import type { IDisposable } from '../../utils/disposable';
 import { toValue, type MaybeRefOrGetter, tryOnScopeDispose } from '@vueuse/core';
-import { computed, shallowRef } from 'vue-demi';
+import type { Ref } from 'vue-demi';
+import { computed, ref, shallowRef, watch, watchEffect } from 'vue-demi';
 
 export const enum ScrollbarVisibility {
   Auto = 1,
@@ -65,29 +66,27 @@ export interface INewScrollPosition {
   scrollTop?: number;
 }
 
-export class ScrollState implements IScrollDimensions, IScrollPosition {
-  _scrollStateBrand: void = undefined;
+export function useScrollState(
+  _forceIntegerValues: MaybeRefOrGetter<boolean>,
+  widthMaybeRef: MaybeRefOrGetter<number>,
+  scrollWidthMaybeRef: MaybeRefOrGetter<number>,
+  scrollLeftMaybeRef: MaybeRefOrGetter<number>,
+  heightMaybeRef: MaybeRefOrGetter<number>,
+  scrollHeightMaybeRef: MaybeRefOrGetter<number>,
+  scrollTopMaybeRef: MaybeRefOrGetter<number>,
+) {
+  let rawScrollLeft = 0;
+  let rawScrollTop = 0;
 
-  public readonly rawScrollLeft: number;
-  public readonly rawScrollTop: number;
+  function update() {
+    let width = toValue(widthMaybeRef);
+    let scrollWidth = toValue(scrollWidthMaybeRef);
+    let scrollLeft = toValue(scrollLeftMaybeRef);
+    let height = toValue(heightMaybeRef);
+    let scrollHeight = toValue(scrollHeightMaybeRef);
+    let scrollTop = toValue(scrollTopMaybeRef);
 
-  public readonly width: number;
-  public readonly scrollWidth: number;
-  public readonly scrollLeft: number;
-  public readonly height: number;
-  public readonly scrollHeight: number;
-  public readonly scrollTop: number;
-
-  constructor(
-    private readonly _forceIntegerValues: boolean,
-    width: number,
-    scrollWidth: number,
-    scrollLeft: number,
-    height: number,
-    scrollHeight: number,
-    scrollTop: number,
-  ) {
-    if (this._forceIntegerValues) {
+    if (toValue(_forceIntegerValues)) {
       width = width | 0;
       scrollWidth = scrollWidth | 0;
       scrollLeft = scrollLeft | 0;
@@ -96,8 +95,8 @@ export class ScrollState implements IScrollDimensions, IScrollPosition {
       scrollTop = scrollTop | 0;
     }
 
-    this.rawScrollLeft = scrollLeft; // before validation
-    this.rawScrollTop = scrollTop; // before validation
+    rawScrollLeft = scrollLeft;
+    rawScrollTop = scrollTop;
 
     if (width < 0) {
       width = 0;
@@ -119,87 +118,86 @@ export class ScrollState implements IScrollDimensions, IScrollPosition {
       scrollTop = 0;
     }
 
-    this.width = width;
-    this.scrollWidth = scrollWidth;
-    this.scrollLeft = scrollLeft;
-    this.height = height;
-    this.scrollHeight = scrollHeight;
-    this.scrollTop = scrollTop;
+    return [width, scrollWidth, scrollLeft, height, scrollHeight, scrollTop];
   }
 
-  public equals(other: ScrollState): boolean {
-    return (
-      this.rawScrollLeft === other.rawScrollLeft
-      && this.rawScrollTop === other.rawScrollTop
-      && this.width === other.width
-      && this.scrollWidth === other.scrollWidth
-      && this.scrollLeft === other.scrollLeft
-      && this.height === other.height
-      && this.scrollHeight === other.scrollHeight
-      && this.scrollTop === other.scrollTop
-    );
-  }
+  const [width, scrollWidth, scrollLeft, height, scrollHeight, scrollTop] = update();
 
-  public withScrollDimensions(update: INewScrollDimensions, useRawScrollPositions: boolean): ScrollState {
-    return new ScrollState(
-      this._forceIntegerValues,
-      (typeof update.width !== 'undefined' ? update.width : this.width),
-      (typeof update.scrollWidth !== 'undefined' ? update.scrollWidth : this.scrollWidth),
-      useRawScrollPositions ? this.rawScrollLeft : this.scrollLeft,
-      (typeof update.height !== 'undefined' ? update.height : this.height),
-      (typeof update.scrollHeight !== 'undefined' ? update.scrollHeight : this.scrollHeight),
-      useRawScrollPositions ? this.rawScrollTop : this.scrollTop,
-    );
-  }
+  const scrollEvent = ref({
+    oldWidth: 0,
+    oldScrollWidth: 0,
+    oldScrollLeft: 0,
 
-  public withScrollPosition(update: INewScrollPosition): ScrollState {
-    return new ScrollState(
-      this._forceIntegerValues,
-      this.width,
-      this.scrollWidth,
-      (typeof update.scrollLeft !== 'undefined' ? update.scrollLeft : this.rawScrollLeft),
-      this.height,
-      this.scrollHeight,
-      (typeof update.scrollTop !== 'undefined' ? update.scrollTop : this.rawScrollTop),
-    );
-  }
+    width,
+    scrollWidth,
+    scrollLeft,
 
-  public createScrollEvent(previous: ScrollState, inSmoothScrolling: boolean): ScrollEvent {
-    const widthChanged = (this.width !== previous.width);
-    const scrollWidthChanged = (this.scrollWidth !== previous.scrollWidth);
-    const scrollLeftChanged = (this.scrollLeft !== previous.scrollLeft);
+    widthChanged: false,
+    scrollWidthChanged: false,
+    scrollLeftChanged: false,
 
-    const heightChanged = (this.height !== previous.height);
-    const scrollHeightChanged = (this.scrollHeight !== previous.scrollHeight);
-    const scrollTopChanged = (this.scrollTop !== previous.scrollTop);
+    oldHeight: 0,
+    oldScrollHeight: 0,
+    oldScrollTop: 0,
 
-    return {
-      inSmoothScrolling,
-      oldWidth: previous.width,
-      oldScrollWidth: previous.scrollWidth,
-      oldScrollLeft: previous.scrollLeft,
+    height,
+    scrollHeight,
+    scrollTop,
 
-      width: this.width,
-      scrollWidth: this.scrollWidth,
-      scrollLeft: this.scrollLeft,
+    heightChanged: false,
+    scrollHeightChanged: false,
+    scrollTopChanged: false,
+  });
 
-      oldHeight: previous.height,
-      oldScrollHeight: previous.scrollHeight,
-      oldScrollTop: previous.scrollTop,
+  watchEffect(() => {
+    const {
+      width: oldWidth, scrollWidth: oldScrollWidth, scrollLeft: oldScrollLeft,
+      height: oldHeight, scrollHeight: oldScrollHeight, scrollTop: oldScrollTop,
+    } = scrollEvent.value;
 
-      height: this.height,
-      scrollHeight: this.scrollHeight,
-      scrollTop: this.scrollTop,
+    const oldRawScrollLeft = rawScrollLeft;
+    const oldRawScrollTop = rawScrollTop;
 
-      widthChanged,
-      scrollWidthChanged,
-      scrollLeftChanged,
+    const [width, scrollWidth, scrollLeft, height, scrollHeight, scrollTop] = update();
 
-      heightChanged,
-      scrollHeightChanged,
-      scrollTopChanged,
+    if (
+      oldRawScrollLeft === rawScrollLeft && oldRawScrollTop === rawScrollTop &&
+      oldWidth === width && oldScrollWidth === scrollWidth && oldScrollLeft === scrollLeft &&
+      oldHeight === height && oldScrollHeight === scrollHeight && oldScrollTop === scrollTop
+    ) return;
+
+    scrollEvent.value = {
+      oldWidth,
+      oldScrollWidth,
+      oldScrollLeft,
+
+      width,
+      scrollWidth,
+      scrollLeft,
+
+      widthChanged: oldWidth !== width,
+      scrollWidthChanged: oldScrollWidth !== scrollWidth,
+      scrollLeftChanged: oldScrollLeft !== scrollLeft,
+
+      oldHeight,
+      oldScrollHeight,
+      oldScrollTop,
+
+      height,
+      scrollHeight,
+      scrollTop,
+
+      heightChanged: oldHeight !== height,
+      scrollHeightChanged: oldScrollHeight !== scrollHeight,
+      scrollTopChanged: oldScrollTop !== scrollTop,
     };
-  }
+  });
+
+  return {
+    rawScrollLeft,
+    rawScrollTop,
+    scrollEvent: computed(() => scrollEvent.value),
+  };
 }
 
 export class SmoothScrollingUpdate {
@@ -214,92 +212,16 @@ export class SmoothScrollingUpdate {
   }
 }
 
-interface IAnimation {
-  (completion: number): number;
+function easeInCubic(t: number) {
+  return t ** 3;
 }
 
-export class SmoothScrollingOperation {
-  public readonly from: ISmoothScrollPosition;
-  public to: ISmoothScrollPosition;
-  public readonly duration: number;
-  public readonly startTime: number;
-  public animationFrameDisposable: IDisposable | null;
+function easeOutCubic(t: number) {
+  return 1 - easeInCubic(1 - t);
+}
 
-  private scrollLeft!: IAnimation;
-  private scrollTop!: IAnimation;
-
-  constructor(from: ISmoothScrollPosition, to: ISmoothScrollPosition, startTime: number, duration: number) {
-    this.from = from;
-    this.to = to;
-    this.duration = duration;
-    this.startTime = startTime;
-
-    this.animationFrameDisposable = null;
-
-    this._initAnimations();
-  }
-
-  private _initAnimations(): void {
-    this.scrollLeft = this._initAnimation(this.from.scrollLeft, this.to.scrollLeft, this.to.width);
-    this.scrollTop = this._initAnimation(this.from.scrollTop, this.to.scrollTop, this.to.height);
-  }
-
-  private _initAnimation(from: number, to: number, viewportSize: number): IAnimation {
-    const delta = Math.abs(from - to);
-    if (delta > 2.5 * viewportSize) {
-      let stop1: number, stop2: number;
-      if (from < to) {
-        // scroll to 75% of the viewportSize
-        stop1 = from + 0.75 * viewportSize;
-        stop2 = to - 0.75 * viewportSize;
-      } else {
-        stop1 = from - 0.75 * viewportSize;
-        stop2 = to + 0.75 * viewportSize;
-      }
-      return createComposed(createEaseOutCubic(from, stop1), createEaseOutCubic(stop2, to), 0.33);
-    }
-    return createEaseOutCubic(from, to);
-  }
-
-  public dispose(): void {
-    if (this.animationFrameDisposable !== null) {
-      this.animationFrameDisposable.dispose();
-      this.animationFrameDisposable = null;
-    }
-  }
-
-  public acceptScrollDimensions(state: ScrollState): void {
-    this.to = state.withScrollPosition(this.to);
-    this._initAnimations();
-  }
-
-  public tick(): SmoothScrollingUpdate {
-    return this._tick(Date.now());
-  }
-
-  protected _tick(now: number): SmoothScrollingUpdate {
-    const completion = (now - this.startTime) / this.duration;
-
-    if (completion < 1) {
-      const newScrollLeft = this.scrollLeft(completion);
-      const newScrollTop = this.scrollTop(completion);
-      return new SmoothScrollingUpdate(newScrollLeft, newScrollTop, false);
-    }
-
-    return new SmoothScrollingUpdate(this.to.scrollLeft, this.to.scrollTop, true);
-  }
-
-  public combine(from: ISmoothScrollPosition, to: ISmoothScrollPosition, duration: number): SmoothScrollingOperation {
-    return SmoothScrollingOperation.start(from, to, duration);
-  }
-
-  public static start(from: ISmoothScrollPosition, to: ISmoothScrollPosition, duration: number): SmoothScrollingOperation {
-    // +10 / -10 : pretend the animation already started for a quicker response to a scroll request
-    duration = duration + 10;
-    const startTime = Date.now() - 10;
-
-    return new SmoothScrollingOperation(from, to, startTime, duration);
-  }
+interface IAnimation {
+  (completion: number): number;
 }
 
 function createEaseOutCubic(from: number, to: number): IAnimation {
@@ -318,185 +240,258 @@ function createComposed(a: IAnimation, b: IAnimation, cut: number): IAnimation {
   };
 }
 
-function easeInCubic(t: number) {
-  return t ** 3;
+function initAnimation(from: number, to: number, viewportSize: number): IAnimation {
+  const delta = Math.abs(from - to);
+  if (delta > 2.5 * viewportSize) {
+    let stop1, stop2;
+    if (from < to) {
+      // scroll to 75% of the viewportSize
+      stop1 = from + 0.75 * viewportSize;
+      stop2 = to - 0.75 * viewportSize;
+    } else {
+      stop1 = from - 0.75 * viewportSize;
+      stop2 = to + 0.75 * viewportSize;
+    }
+    return createComposed(createEaseOutCubic(from, stop1), createEaseOutCubic(stop2, to), 0.33);
+  }
+  return createEaseOutCubic(from, to);
 }
 
-function easeOutCubic(t: number) {
-  return 1 - easeInCubic(1 - t);
+export function useSmoothScrolling(
+  from: Ref<ISmoothScrollPosition>,
+  to: Ref<ISmoothScrollPosition>,
+  startTime: MaybeRefOrGetter<number>,
+  duration: MaybeRefOrGetter<number>,
+) {
+  const _startTime = computed(() => toValue(startTime) - 10);
+  const _duration = computed(() => toValue(duration) + 10);
+
+  const scrollLeft = computed(() => initAnimation(from.value.scrollLeft, to.value.scrollLeft, to.value.width));
+  const scrollTop = computed(() => initAnimation(from.value.scrollTop, to.value.scrollTop, to.value.height));
+
+  function _tick(now: number) {
+    const completion = (now - _startTime.value) / _duration.value;
+
+    if (completion < 1) {
+      const newScrollLeft = scrollLeft.value(completion);
+      const newScrollTop = scrollTop.value(completion);
+      return new SmoothScrollingUpdate(newScrollLeft, newScrollTop, false);
+    }
+
+    return new SmoothScrollingUpdate(to.value.scrollLeft, to.value.scrollTop, true);
+  }
+
+  return () => _tick(Date.now());
 }
 
-export interface IScrollableCallback {
-  (e: ScrollEvent): void;
+class AnimationFrameQueueItem {
+  private _runner: () => void;
+  private _canceled: boolean;
+
+  constructor(runner: () => void) {
+    this._runner = runner;
+    this._canceled = false;
+  }
+
+  public dispose(): void {
+    this._canceled = true;
+  }
+
+  public execute(): void {
+    if (this._canceled) {
+      return;
+    }
+
+    try {
+      this._runner();
+    } catch (e) {
+      // onUnexpectedError(e)
+    }
+  }
 }
 
-export interface UseScrollableOptions {
-  onScroll: IScrollableCallback;
-  scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable;
-  smoothScrollDuration?: MaybeRefOrGetter<number>;
-  forceIntegerValues?: MaybeRefOrGetter<boolean>;
+let NEXT_QUEUE: AnimationFrameQueueItem[] = [];
+let CURRENT_QUEUE: AnimationFrameQueueItem[] | null = null;
+let animFrameRequested = false;
+
+const animationFrameRunner = () => {
+  animFrameRequested = false;
+
+  CURRENT_QUEUE = NEXT_QUEUE;
+  NEXT_QUEUE = [];
+
+  while (CURRENT_QUEUE.length > 0) {
+    const top = CURRENT_QUEUE.shift()!;
+    top.execute();
+  }
+};
+
+export function raf(runner: VoidFunction) {
+  const item = new AnimationFrameQueueItem(runner);
+  NEXT_QUEUE.push(item);
+
+  if (!animFrameRequested) {
+    animFrameRequested = true;
+    requestAnimationFrame(animationFrameRunner);
+  }
+
+  return () => item.dispose();
 }
 
-export function useScrollable(opts: UseScrollableOptions) {
-  let {
-    onScroll,
-    scheduleAtNextAnimationFrame,
-    smoothScrollDuration = 0,
-    forceIntegerValues = true,
-  } = opts;
+export function useScrollable(
+  onScroll: (e: ScrollEvent) => void,
+  _forceIntegerValues: boolean,
+  _smoothScrollDurationRef: MaybeRefOrGetter<number>,
+  _widthRef: MaybeRefOrGetter<number>,
+  _scrollWidthRef: MaybeRefOrGetter<number>,
+  _scrollLeftRef: MaybeRefOrGetter<number>,
+  _heightRef: MaybeRefOrGetter<number>,
+  _scrollHeightRef: MaybeRefOrGetter<number>,
+  _scrollTopRef: MaybeRefOrGetter<number>,
+) {
+  const smoothScrollDurationRef = computed(() => toValue(_smoothScrollDurationRef));
 
-  const scrollState = shallowRef(new ScrollState(toValue(forceIntegerValues), 0, 0, 0, 0, 0, 0));
-  const smoothScrollDurationRef = computed(() => toValue(smoothScrollDuration));
-  const smoothScrolling = shallowRef<SmoothScrollingOperation | null>(null);
+  const widthRef = computed(() => toValue(_widthRef));
+  const scrollWidthRef = computed(() => toValue(_scrollWidthRef));
+  const scrollLeftRef = ref(toValue(_scrollLeftRef));
 
-  tryOnScopeDispose(() => {
-    dispose();
+  const heightRef = computed(() => toValue(_heightRef));
+  const scrollHeightRef = computed(() => toValue(_scrollHeightRef));
+  const scrollTopRef = ref(toValue(_scrollTopRef));
+
+  const { scrollEvent } = useScrollState(
+    _forceIntegerValues,
+    widthRef,
+    scrollWidthRef,
+    scrollLeftRef,
+    heightRef,
+    scrollHeightRef,
+    scrollTopRef,
+  );
+
+  function setScrollPositionNow(update: INewScrollPosition) {
+    if (typeof update.scrollLeft === 'number') {
+      scrollLeftRef.value = update.scrollLeft;
+    }
+
+    if (typeof update.scrollTop === 'number') {
+      scrollTopRef.value = update.scrollTop;
+    }
+  }
+
+  const _from = ref<ISmoothScrollPosition>({
+    scrollLeft: scrollEvent.value.scrollLeft,
+    scrollTop: scrollEvent.value.scrollTop,
+    width: scrollEvent.value.width,
+    height: scrollEvent.value.height,
   });
 
-  function dispose() {
-    if (smoothScrolling.value) {
-      smoothScrolling.value.dispose();
-      smoothScrolling.value = null;
-    }
-  }
+  const _to = ref<ISmoothScrollPosition>({
+    scrollLeft: scrollEvent.value.scrollLeft,
+    scrollTop: scrollEvent.value.scrollTop,
+    width: scrollEvent.value.width,
+    height: scrollEvent.value.height,
+  });
+  const startTime = ref<number>(Date.now());
+  const inSmoothScrolling = ref(false);
+  const smoothScrollingTick = useSmoothScrolling(_from, _to, startTime, smoothScrollDurationRef);
+  // const rafController = useRafFn(() => _performSmoothScrolling(), { immediate: false });
+  let stopRaf: VoidFunction | null = null;
 
-  function validateScrollPosition(scrollPosition: INewScrollPosition): INewScrollPosition {
-    return scrollState.value.withScrollPosition(scrollPosition);
-  }
-
-  function _setState(newState: ScrollState, inSmoothScrolling: boolean): void {
-    const oldState = scrollState.value;
-    if (oldState.equals(newState)) {
-      // no change
-      return;
-    }
-    scrollState.value = newState;
-    onScroll(scrollState.value.createScrollEvent(oldState, inSmoothScrolling));
-  }
-
-  function getScrollDimensions(): IScrollDimensions {
-    return scrollState.value;
-  }
-
-  function setScrollDimensions(dimensions: INewScrollDimensions, useRawScrollPositions: boolean): void {
-    const newState = scrollState.value.withScrollDimensions(dimensions, useRawScrollPositions);
-    _setState(newState, Boolean(smoothScrolling.value));
-
-    // Validate outstanding animated scroll position target
-    smoothScrolling.value?.acceptScrollDimensions(scrollState.value);
-  }
-
-  function getFutureScrollPosition(): IScrollPosition {
-    if (smoothScrolling.value) {
-      return smoothScrolling.value.to;
-    }
-    return scrollState.value;
-  }
-
-  function getCurrentScrollPosition(): IScrollPosition {
-    return scrollState.value;
-  }
-
-  function setScrollPositionNow(update: INewScrollPosition): void {
-    // no smooth scrolling requested
-    const newState = scrollState.value.withScrollPosition(update);
-
-    // Terminate any outstanding smooth scrolling
-    if (smoothScrolling.value) {
-      smoothScrolling.value.dispose();
-      smoothScrolling.value = null;
-    }
-
-    _setState(newState, false);
-  }
-
-  function _performSmoothScrolling(): void {
-    if (!smoothScrolling.value) {
-      return;
-    }
-    const update = smoothScrolling.value.tick();
-    const newState = scrollState.value.withScrollPosition(update);
-
-    _setState(newState, true);
-
-    if (!smoothScrolling.value) {
-      // Looks like someone canceled the smooth scrolling
-      // from the scroll event handler
-      return;
-    }
-
-    if (update.isDone) {
-      smoothScrolling.value.dispose();
-      smoothScrolling.value = null;
-      return;
-    }
-
-    // Continue smooth scrolling animation
-    smoothScrolling.value.animationFrameDisposable = scheduleAtNextAnimationFrame(() => {
-      if (!smoothScrolling.value) {
-        return;
-      }
-      smoothScrolling.value.animationFrameDisposable = null;
-      _performSmoothScrolling();
-    });
-  }
-
-  function setScrollPositionSmooth(update: INewScrollPosition, reuseAnimation?: boolean): void {
+  function setScrollPositionSmooth(update: INewScrollPosition) {
     if (smoothScrollDurationRef.value === 0) {
-      // Smooth scrolling not supported.
       return setScrollPositionNow(update);
     }
 
-    if (smoothScrolling.value) {
-      // Combine our pending scrollLeft/scrollTop with incoming scrollLeft/scrollTop
+    if (stopRaf) {
       update = {
-        scrollLeft: (typeof update.scrollLeft === 'undefined' ? smoothScrolling.value.to.scrollLeft : update.scrollLeft),
-        scrollTop: (typeof update.scrollTop === 'undefined' ? smoothScrolling.value.to.scrollTop : update.scrollTop),
+        scrollLeft: typeof update.scrollLeft === 'undefined' ? scrollLeftRef.value : update.scrollLeft,
+        scrollTop: typeof update.scrollTop === 'undefined' ? scrollTopRef.value : update.scrollTop,
       };
 
-      // Validate `update`
-      const validTarget = scrollState.value.withScrollPosition(update);
+      console.log('存在', { ...update });
 
-      if (smoothScrolling.value.to.scrollLeft === validTarget.scrollLeft && smoothScrolling.value.to.scrollTop === validTarget.scrollTop) {
-        // No need to interrupt or extend the current animation since we're going to the same place
-        return;
-      }
-      let newSmoothScrolling: SmoothScrollingOperation;
-      if (reuseAnimation) {
-        newSmoothScrolling = new SmoothScrollingOperation(smoothScrolling.value.from, validTarget, smoothScrolling.value.startTime, smoothScrolling.value.duration);
-      } else {
-        newSmoothScrolling = smoothScrolling.value.combine(scrollState.value, validTarget, smoothScrollDurationRef.value);
-      }
-      smoothScrolling.value.dispose();
-      smoothScrolling.value = newSmoothScrolling;
+      if (_to.value.scrollLeft === update.scrollLeft && _to.value.scrollTop === update.scrollTop) return;
+
+      _to.value = {
+        scrollLeft: update.scrollLeft!,
+        scrollTop: update.scrollTop!,
+        width: _to.value.width,
+        height: _to.value.height,
+      };
+
+      startTime.value = Date.now();
+
+      stopRaf();
+
+      // inSmoothScrolling.value = true;
     } else {
-      // Validate `update`
-      const validTarget = scrollState.value.withScrollPosition(update);
+      console.log('新', { ...update });
 
-      smoothScrolling.value = SmoothScrollingOperation.start(scrollState.value, validTarget, smoothScrollDurationRef.value);
+      _to.value = {
+        scrollLeft: typeof update.scrollLeft === 'number' ? update.scrollLeft : _to.value.scrollLeft,
+        scrollTop: typeof update.scrollTop === 'number' ? update.scrollTop : _to.value.scrollTop,
+        width: _to.value.width,
+        height: _to.value.height,
+      };
+
+      startTime.value = Date.now();
+
+      // inSmoothScrolling.value = true;
     }
 
-    // Begin smooth scrolling animation
-    smoothScrolling.value.animationFrameDisposable = scheduleAtNextAnimationFrame(() => {
-      if (!smoothScrolling.value) {
-        return;
-      }
-      smoothScrolling.value.animationFrameDisposable = null;
+    inSmoothScrolling.value = true;
+    stopRaf = raf(() => {
+      stopRaf = null;
       _performSmoothScrolling();
     });
   }
 
+  function _performSmoothScrolling() {
+    if (!inSmoothScrolling.value) return;
+
+    const update = smoothScrollingTick();
+
+    scrollTopRef.value = update.scrollTop;
+    scrollLeftRef.value = update.scrollLeft;
+
+    if (update.isDone) {
+      inSmoothScrolling.value = false;
+      if (stopRaf) {
+        stopRaf();
+        stopRaf = null;
+      }
+      return;
+    }
+
+    stopRaf = raf(() => {
+      stopRaf = null;
+      _performSmoothScrolling();
+    });
+  }
+
+  function didScroll(update: INewScrollPosition) {
+    smoothScrollDurationRef.value === 0 ? setScrollPositionNow(update) : setScrollPositionSmooth(update);
+  }
+
+  function getFutureScrollPosition(): IScrollPosition {
+    return { ..._to.value };
+  }
+
+  function validateScrollPosition(scrollPosition: INewScrollPosition): IScrollPosition {
+    return {
+      scrollLeft: typeof scrollPosition.scrollLeft === 'undefined' ? scrollEvent.value.scrollLeft : scrollPosition.scrollLeft,
+      scrollTop: typeof scrollPosition.scrollTop === 'undefined' ? scrollEvent.value.scrollTop : scrollPosition.scrollTop,
+    };
+  }
+
+  watch(scrollEvent, (e) => {
+    onScroll?.({ ...e, inSmoothScrolling: inSmoothScrolling.value });
+  });
+
   return {
-    dispose,
-    validateScrollPosition,
-    getScrollDimensions,
-    setScrollDimensions,
+    didScroll,
     getFutureScrollPosition,
-    getCurrentScrollPosition,
-    setScrollPositionNow,
-    setScrollPositionSmooth,
-    hasPendingScrollAnimation: computed(() => Boolean(smoothScrolling.value)),
+    validateScrollPosition,
   };
 }
-
-export type UseScrollableReturn = ReturnType<typeof useScrollable>;

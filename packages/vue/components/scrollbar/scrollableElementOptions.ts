@@ -1,4 +1,5 @@
-import type { ScrollbarVisibility } from './scrollable';
+import type { ScrollbarVisibility, IScrollableOptions } from './scrollable';
+import type { INewScrollDimensions } from './scrollableHook';
 
 export interface ScrollableElementCreationOptions {
   /**
@@ -121,9 +122,18 @@ export interface ScrollableElementCreationOptions {
   scrollByPage?: boolean;
 }
 
-export type ScrollableElementOptions = ScrollableElementCreationOptions & {
-  forceIntegerValues?: boolean;
-  smoothScrollDuration?: number;
+export type ScrollableElementOptions = ScrollableElementCreationOptions & IScrollableOptions & {
+  /**
+   * 启用自动检测 width 和 height，设置为 false 则需要手动传入 width & height
+   * Defaults to true
+   */
+  autoResize?: boolean;
+  width?: number;
+  scrollWidth?: number;
+  height?: number;
+  scrollHeight?: number;
+
+  revealOnScroll?: boolean;
 };
 
 export interface ScrollableElementChangeOptions {
