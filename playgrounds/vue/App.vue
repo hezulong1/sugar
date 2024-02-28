@@ -1,72 +1,46 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { useScrollable, type ScrollEvent } from './hook';
+import { useScrollbarState } from '@local/vue';
 
-const result = ref('');
+const delta = ref(0);
 
-const forceIntegerValues = ref(true);
-const smoothScrollDuration = ref(2000);
-const width = ref(320);
-const scrollWidth = ref(400);
-const scrollLeft = ref(0);
-const height = ref(280);
-const scrollHeight = ref(8000);
-const scrollTop = ref(60);
+const {
+  arrowSize,
+  scrollbarSize,
+  oppositeScrollbarSize,
+  visibleSize,
+  scrollSize,
+  scrollPosition,
 
-const startScrollTop = ref(0);
-const startScrollLeft = ref(0);
+  rectangleLargeSize,
+  rectangleSmallSize,
+  isNeeded,
+  sliderSize,
+  sliderPosition,
 
-const onScroll = (e: ScrollEvent) => {
-  result.value = JSON.stringify(e, null, 2);
-  startScrollTop.value = e.scrollTop;
-  startScrollLeft.value = e.scrollLeft;
-};
-
-const trigger = useScrollable(
-  onScroll,
-  forceIntegerValues.value,
-  smoothScrollDuration,
-  width,
-  scrollWidth,
-  startScrollLeft,
-  height,
-  scrollHeight,
-  startScrollTop,
-);
-
-function onAdd() {
-  console.log('onAdd');
-  trigger({ scrollLeft: startScrollLeft.value || scrollLeft.value, scrollTop: startScrollTop.value || scrollTop.value });
-}
-
-function onReset() {
-  startScrollTop.value = 0;
-  startScrollLeft.value = 0;
-}
+  getDesiredScrollPositionFromOffset,
+  getDesiredScrollPositionFromOffsetPaged,
+  getDesiredScrollPositionFromDelta,
+} = useScrollbarState(11.2, 300.8, 12.4, 300.4, 8000.5, 40.3);
 
 </script>
 
 <template>
-  <div>smoothScrollDuration: <input v-model="smoothScrollDuration" type="number" min="0" max="125"><input v-model="forceIntegerValues" type="checkbox"></div>
-
-  <br>
-
-  <label>width: <input v-model="width" type="number" step="0.1" min="0"></label>
-  <label>scrollWidth: <input v-model="scrollWidth" type="number" step="0.1" min="0"></label>
-  <label>scrollLeft: <input v-model="scrollLeft" type="number" step="0.1" min="0"></label>
-
-  <br>
-
-  <label>height: <input v-model="height" type="number" step="0.1" min="0"></label>
-  <label>scrollHeight: <input v-model="scrollHeight" type="number" step="0.1" min="0"></label>
-  <label>scrollTop: <input v-model="scrollTop" type="number" step="0.1" min="0"></label>
-
-  <br>
-  <div>
-    {{ startScrollTop }}
-  </div>
-  <button type="button" @click="onAdd">+</button>
-  <button type="button" @click="onReset">R</button>
-  <br>
-  <textarea v-model="result" style="margin-top: 20px; width: 340px; height: 320px" />
+  <p>arrowSize: {{ arrowSize }}</p>
+  <p>scrollbarSize: {{ scrollbarSize }} <input v-model="scrollbarSize" type="number" step="0.1" min="0"></p>
+  <p>oppositeScrollbarSize: {{ oppositeScrollbarSize }} <input v-model="oppositeScrollbarSize" type="number" step="0.1" min="0"></p>
+  <p>visibleSize: {{ visibleSize }} <input v-model="visibleSize" type="number" step="0.1" min="0"></p>
+  <p>scrollSize: {{ scrollSize }} <input v-model="scrollSize" type="number" step="0.1" min="0"></p>
+  <p>scrollPosition: {{ scrollPosition }} <input v-model="scrollPosition" type="number" step="0.1" min="0"></p>
+  <hr>
+  <p>rectangleLargeSize: {{ rectangleLargeSize }}</p>
+  <p>rectangleSmallSize: {{ rectangleSmallSize }}</p>
+  <p>isNeeded: {{ isNeeded }}</p>
+  <p>sliderSize: {{ sliderSize }}</p>
+  <p>sliderPosition: {{ sliderPosition }}</p>
+  <hr>
+  <p><input v-model="delta" type="number" step="1" min="0"></p>
+  <p>getDesiredScrollPositionFromOffset: {{ getDesiredScrollPositionFromOffset(delta) }}</p>
+  <p>getDesiredScrollPositionFromOffsetPaged: {{ getDesiredScrollPositionFromOffsetPaged(delta) }}</p>
+  <p>getDesiredScrollPositionFromDelta: {{ getDesiredScrollPositionFromDelta(delta) }}</p>
 </template>

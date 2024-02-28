@@ -1,6 +1,6 @@
 import type { AnyFn, ConfigurableWindow } from '@vueuse/core';
 import { useEventListener, tryOnScopeDispose, defaultWindow } from '@vueuse/core';
-import { computed, readonly, shallowRef } from 'vue-demi';
+import { computed, readonly, ref } from 'vue-demi';
 
 export interface IOnMoveCallback {
   (event: PointerEvent): void;
@@ -17,8 +17,8 @@ export function usePointerMove(options: UsePointerMoveOptions = {}) {
 
   let _hooks = new Set<AnyFn>();
 
-  const _onMove = shallowRef<IOnMoveCallback | null>(null);
-  const _onStop = shallowRef<IOnStopCallback | null>(null);
+  const _onMove = ref<IOnMoveCallback | null>(null);
+  const _onStop = ref<IOnStopCallback | null>(null);
   const isMonitoring = computed(() => Boolean(_onMove.value));
 
   const _clear = () => {
@@ -104,7 +104,7 @@ export function usePointerMove(options: UsePointerMoveOptions = {}) {
       }
 
       e.preventDefault();
-      _onMove.value?.(e);
+      _onMove.value!(e);
     }));
 
     _hooks.add(useEventListener(eventSource, 'pointerup', (e: PointerEvent) => stop(true)));

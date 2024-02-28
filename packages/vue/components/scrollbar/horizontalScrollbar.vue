@@ -1,147 +1,134 @@
 <script setup lang="ts">
-import { type CSSProperties, computed, watchEffect, ref } from 'vue-demi';
-import { type ScrollbarOptions, type ScrollbarEmits, POINTER_DRAG_RESET_DISTANCE } from './scrollbar';
+import type { CSSProperties } from 'vue-demi';
+import type { ISimplifiedPointerEvent, ScrollbarOptions, ScrollbarEmits } from './scrollbar';
+import type { INewScrollPosition } from './scrollable';
 
+import { computed, ref } from 'vue-demi';
+import { toRef } from '@vueuse/core';
+import { useScrollbar } from './scrollbar';
 import { ScrollbarVisibility } from './scrollable';
-import ScrollbarArrow from './scrollbarArrow.vue';
+import { ScrollbarState } from './scrollbarState';
 import { ARROW_IMG_SIZE } from './scrollbarArrow';
-import { useScrollbarVisiblityController } from './scrollbarVisibilityController';
-import { useScrollbarState } from './scrollbarState';
-import { usePointerMove } from '../../hooks/usePointerMove';
-import { isWindows } from '../../utils/platform';
+import ScrollbarArrow from './scrollbarArrow.vue';
 
 const props = withDefaults(defineProps<ScrollbarOptions>(), {
   visibility: ScrollbarVisibility.Auto,
   arrowSize: ARROW_IMG_SIZE,
 });
 const emit = defineEmits<ScrollbarEmits>();
-const pointerMoveMonitor = usePointerMove();
 
 const computedArrowSize = computed(() => props.hasArrows ? props.arrowSize : 0);
 const computedScrollbarSize = computed(() => props.visibility === ScrollbarVisibility.Hidden ? 0 : props.scrollbarSize);
 
-const scrollbarState = useScrollbarState(
-  computedArrowSize,
-  computedScrollbarSize,
+const scrollDimensions = computed(() => props.scrollable.getScrollDimensions());
+const scrollPosition = computed(() => props.scrollable.getCurrentScrollPosition());
+
+const scrollbarState = new ScrollbarState(
+  computedArrowSize.value,
+  computedScrollbarSize.value,
   props.oppositeScrollbarSize,
-  props.visibleSize,
-  props.scrollSize,
-  props.scrollPosition,
+  scrollDimensions.value.width,
+  scrollDimensions.value.scrollWidth,
+  scrollPosition.value.scrollLeft,
 );
-const visiblityController = useScrollbarVisiblityController(props.visibility, 'visible scrollbar horizontal', 'invisible scrollbar horizontal');
-const className = computed(() => visiblityController.className.value);
 
-const scrollbarStyle = computed<CSSProperties>(() => {
-  const s: CSSProperties = {
-    position: 'absolute',
-    width: scrollbarState.rectangleLargeSize.value + 'px',
-    height: scrollbarState.rectangleSmallSize.value + 'px',
-    left: '0px',
-    bottom: '0px',
-  };
-  return s;
+const scrollbarStyle = ref<CSSProperties>({
+  position: 'absolute',
+  width: '0px',
+  height: '0px',
+  left: '0px',
+  bottom: '0px',
+});
+const sliderStyle = ref<CSSProperties>({
+  position: 'absolute',
+  top: Math.floor((props.scrollbarSize - props.sliderSize) / 2) + 'px',
+  left: '0px',
+  width: undefined,
+  height: props.sliderSize + 'px',
+  transform: 'translate3d(0px, 0px, 0px)',
+  contain: 'strict',
 });
 
-watchEffect(() => {
-  // 同步信息
-  visiblityController.setIsNeeded(scrollbarState.isNeeded.value);
-});
+function _renderDomNode(largeSize: number, smallSize: number): void {
+  scrollbarStyle.value.width = largeSize + 'px';
+  scrollbarStyle.value.height = smallSize + 'px';
+  scrollbarStyle.value.left = '0px';
+  scrollbarStyle.value.bottom = '0px';
+}
+
+function _updateSlider(sliderSize: number, sliderPosition: number): void {
+  sliderStyle.value.width = sliderSize + 'px';
+  sliderStyle.value.left = sliderPosition + 'px';
+}
+
+function _pointerDownRelativePosition(offsetX: number, _offsetY: number): number {
+  return offsetX;
+}
+
+function _sliderPointerPosition(e: ISimplifiedPointerEvent): number {
+  return e.pageX;
+}
+
+function _sliderOrthogonalPointerPosition(e: ISimplifiedPointerEvent): number {
+  return e.pageY;
+}
+
+function _updateScrollbarSize(size: number): void {
+  sliderStyle.value.height = size + 'px';
+}
+
+function writeScrollPosition(target: INewScrollPosition, scrollPosition: number): void {
+  target.scrollLeft = scrollPosition;
+}
+
+const {
+  domNodeRef,
+  sliderActive,
+  className,
+  isNeeded,
+  beginReveal,
+  beginHide,
+  render,
+  delegatePointerDown,
+  onDomNodePointerDown,
+  onSliderPointerDown,
+  onSliderClick,
+  onHostMousewheel,
+  createOnDidScroll,
+  updateScrollbarSize,
+} = useScrollbar({
+  scrollbarState,
+  scrollable: toRef(props, 'scrollable'),
+  lazyRender: toRef(props, 'lazyRender'),
+  visibility: toRef(props, 'visibility'),
+  extraScrollbarClassName: 'horizontal',
+  scrollByPage: toRef(props, 'scrollByPage'),
+  _renderDomNode,
+  _updateSlider,
+  _pointerDownRelativePosition,
+  _sliderPointerPosition,
+  _sliderOrthogonalPointerPosition,
+  _updateScrollbarSize,
+  writeScrollPosition,
+}, emit);
 
 const arrowDelta = computed(() => props.hasArrows ? ((computedArrowSize.value - ARROW_IMG_SIZE) / 2) : undefined);
 const scrollbarDelta = computed(() => props.hasArrows ? ((computedScrollbarSize.value - ARROW_IMG_SIZE) / 2) : undefined);
 
-const sliderActive = ref(false);
-const sliderStyle = computed<CSSProperties>(() => {
-  const s: CSSProperties = {
-    position: 'absolute',
-    top: Math.floor((props.scrollbarSize - props.sliderSize) / 2) + 'px',
-    left: scrollbarState.arrowSize.value + scrollbarState.scrollPosition.value + 'px',
-    width: scrollbarState.sliderSize.value + 'px',
-    height: props.sliderSize + 'px',
-    transform: 'translate3d(0px, 0px, 0px)',
-    contain: 'strict',
-  };
-
-  return s;
-});
-
-function _sliderPointerDown(e: PointerEvent) {
-  if (!e.target || !(e.target instanceof Element)) {
-    return;
-  }
-
-  const initialPointerPosition = e.pageX;
-  const initialPointerOrthogonalPosition = e.pageY;
-  // const initialScrollbarState = this._scrollbarState.clone();
-  sliderActive.value = true;
-
-  pointerMoveMonitor.start(
-    e.target,
-    e.pointerId,
-    e.buttons,
-    (pointerMoveData: PointerEvent) => {
-      const pointerOrthogonalPosition = e.pageY;
-      const pointerOrthogonalDelta = Math.abs(pointerOrthogonalPosition - initialPointerOrthogonalPosition);
-
-      if (isWindows && pointerOrthogonalDelta > POINTER_DRAG_RESET_DISTANCE) {
-        // The pointer has wondered away from the scrollbar => reset dragging
-        // this._setDesiredScrollPositionNow(initialScrollbarState.getScrollPosition());
-        return;
-      }
-
-      const pointerPosition = e.pageX;
-      const pointerDelta = pointerPosition - initialPointerPosition;
-      // this._setDesiredScrollPositionNow(initialScrollbarState.getDesiredScrollPositionFromDelta(pointerDelta));
-    },
-    () => {
-      sliderActive.value = false;
-      emit('hostDragend');
-    },
-  );
-
-  emit('hostDragstart');
-}
-
-function onPointerDown(e: PointerEvent) {
-  //
-}
-
-function onSliderPointerDown(e: PointerEvent) {
-  if (e.button === 0) {
-    e.preventDefault();
-    _sliderPointerDown(e);
-  }
-}
-
-function onSliderClick(e: MouseEvent) {
-  if (e.button === 0) {
-    e.stopPropagation();
-  }
-}
-
-function onStandardMouseWheel(deltaX: number, deltaY: number) {
-  emit('hostMousewheel', deltaX, deltaY);
-}
-
-// ----------------- rendering
-
-function beginReveal() {
-  visiblityController.setShouldBeVisible(true);
-}
-
-function beginHide() {
-  visiblityController.setShouldBeVisible(false);
-}
-
 defineExpose({
   beginReveal,
   beginHide,
-  isNeeded: () => scrollbarState.isNeeded.value,
+  render,
+  delegatePointerDown,
+  updateScrollbarSize,
+  isNeeded,
+  onDidScroll: createOnDidScroll('scrollWidth', 'scrollLeft', 'width'),
+  writeScrollPosition,
 });
 </script>
 
 <template>
-  <div role="presentation" aria-hidden="true" :class="className" :style="scrollbarStyle" @pointerdown="onPointerDown">
+  <div ref="domNodeRef" role="presentation" aria-hidden="true" :class="className" :style="scrollbarStyle" @pointerdown="onDomNodePointerDown">
     <template v-if="hasArrows">
       <ScrollbarArrow
         class="scra"
@@ -149,7 +136,7 @@ defineExpose({
         :left="arrowDelta"
         :bg-width="computedArrowSize"
         :bg-height="computedScrollbarSize"
-        @activate="onStandardMouseWheel(1, 0)"
+        @activate="onHostMousewheel(1, 0)"
       >
         <slot name="startArrow">
           <svg width="1em" height="1em" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -164,7 +151,7 @@ defineExpose({
         :right="arrowDelta"
         :bg-width="computedArrowSize"
         :bg-height="computedScrollbarSize"
-        @activate="onStandardMouseWheel(-1, 0)"
+        @activate="onHostMousewheel(-1, 0)"
       >
         <svg width="1em" height="1em" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M5.55997 14L5.00024 13.5866L5.00024 2.39328L5.53949 2L11.0002 7.62689L11.0002 8.45378L5.55997 14Z" fill="currentColor" />

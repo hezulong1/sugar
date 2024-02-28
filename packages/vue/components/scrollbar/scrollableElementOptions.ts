@@ -122,7 +122,7 @@ export interface ScrollableElementCreationOptions {
   scrollByPage?: boolean;
 }
 
-export type ScrollableElementOptions = ScrollableElementCreationOptions & IScrollableOptions & {
+export type ScrollableElementOptions = ScrollableElementCreationOptions & Partial<IScrollableOptions> & {
   /**
    * 启用自动检测 width 和 height，设置为 false 则需要手动传入 width & height
    * Defaults to true

@@ -2,13 +2,12 @@
 import type { CSSProperties } from 'vue-demi';
 import type { ISimplifiedPointerEvent, ScrollbarOptions, ScrollbarEmits } from './scrollbar';
 import type { INewScrollPosition } from './scrollable';
-import type { UseScrollbarStateOptions } from './scrollbarState';
 
 import { computed, ref } from 'vue-demi';
 import { toRef } from '@vueuse/core';
 import { useScrollbar } from './scrollbar';
 import { ScrollbarVisibility } from './scrollable';
-import { ScrollbarState, useScrollbarState } from './scrollbarState';
+import { ScrollbarState } from './scrollbarState';
 import { ARROW_IMG_SIZE } from './scrollbarArrow';
 import ScrollbarArrow from './scrollbarArrow.vue';
 
@@ -24,7 +23,7 @@ const computedScrollbarSize = computed(() => props.visibility === ScrollbarVisib
 const scrollDimensions = computed(() => props.scrollable.getScrollDimensions());
 const scrollPosition = computed(() => props.scrollable.getCurrentScrollPosition());
 
-const scrollbarState = useScrollbarState(
+const scrollbarState = new ScrollbarState(
   computedArrowSize.value,
   computedScrollbarSize.value,
   0,
@@ -32,22 +31,27 @@ const scrollbarState = useScrollbarState(
   scrollDimensions.value.scrollHeight,
   scrollPosition.value.scrollTop,
 );
-const scrollbarStyle = computed<CSSProperties>(() => ({
+
+const scrollbarStyle = ref<CSSProperties>({
   position: 'absolute',
-  width: scrollbarState.rectangleSmallSize.value + 'px',
-  height: scrollbarState.rectangleLargeSize.value + 'px',
+  // width: scrollbarState.value.getRectangleSmallSize() + 'px',
+  // height: scrollbarState.value.getRectangleLargeSize() + 'px',
+  width: '0px',
+  height: '0px',
   top: '0px',
   right: '0px',
-}));
-const sliderStyle = computed<CSSProperties>(() => ({
+});
+const sliderStyle = ref<CSSProperties>({
   position: 'absolute',
-  top: scrollbarState.arrowSize.value + scrollbarState.scrollPosition.value + 'px',
+  // top: scrollbarState.value.getArrowSize() + scrollbarState.value.getScrollPosition() + 'px',
+  top: 0,
   left: Math.floor((props.scrollbarSize - props.sliderSize) / 2) + 'px',
   width: props.sliderSize + 'px',
-  height: scrollbarState.sliderSize.value + 'px',
+  // height: scrollbarState.value.getSliderSize() + 'px',
+  height: undefined,
   transform: 'translate3d(0px, 0px, 0px)',
   contain: 'strict',
-}));
+});
 
 function _renderDomNode(largeSize: number, smallSize: number): void {
   scrollbarStyle.value.width = smallSize + 'px';

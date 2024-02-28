@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch, watchEffect } from 'vue-demi';
-import { type Fn, useEventListener, useTimeoutFn, tryOnScopeDispose, tryOnMounted } from '@vueuse/core';
+import { computed, reactive, ref, watch, watchEffect } from 'vue-demi';
+import { useEventListener, useTimeoutFn, tryOnScopeDispose, tryOnMounted } from '@vueuse/core';
 
 import { type ScrollableElementOptions } from './scrollableElementOptions';
 
-// import HorizontalScrollbar from './horizontalScrollbar.vue';
+import HorizontalScrollbar from './horizontalScrollbar.vue';
 import VerticalScrollbar from './verticalScrollbar.vue';
 import { Scrollable, ScrollbarVisibility } from './scrollable';
-import type { ScrollEvent, INewScrollPosition, INewScrollDimensions, IScrollDimensions, IScrollPosition } from './scrollable';
+import type { ScrollEvent, INewScrollPosition, INewScrollDimensions, IScrollPosition } from './scrollable';
 import { HIDE_TIMEOUT, MouseWheelClassifier, SCROLL_WHEEL_SENSITIVITY, SCROLL_WHEEL_SMOOTH_SCROLL_ENABLED } from './scrollableElement';
 import { type IMouseWheelEvent, StandardWheelEvent } from '../../utils/mouseEvent';
 import { isMacintosh } from '../../utils/platform';
@@ -52,6 +52,7 @@ const verticalScrollbarRef = ref<InstanceType<typeof VerticalScrollbar>>();
 
 const onScroll = (e: ScrollEvent) => {
   verticalScrollbarRef.value?.onDidScroll(e);
+  horizontalScrollbarRef.value?.onDidScroll(e);
   props.revealOnScroll && private_reveal();
   emit('scroll', e);
 };
@@ -64,49 +65,120 @@ const scrollable = ref(new Scrollable({
 }));
 
 const computedHorizontalScrollbarSize = computed(() => props.horizontal === ScrollbarVisibility.Hidden ? 0 : props.horizontalScrollbarSize);
-// const computedHorizontalSliderSize = computed(() => typeof props.horizontalSliderSize !== 'undefined' ? props.horizontalSliderSize : props.horizontalScrollbarSize);
+const computedHorizontalSliderSize = computed(() => typeof props.horizontalSliderSize !== 'undefined' ? props.horizontalSliderSize : props.horizontalScrollbarSize);
 
 const computedVerticalScrollbarSize = computed(() => props.vertical === ScrollbarVisibility.Hidden ? 0 : props.verticalScrollbarSize);
 const computedVerticalSliderSize = computed(() => typeof props.verticalSliderSize !== 'undefined' ? props.verticalSliderSize : props.verticalScrollbarSize);
 
 const listenOnDomNode = computed(() => typeof props.listenOnDomNode !== 'undefined' ? props.listenOnDomNode : domNodeRef.value);
 
+const mouseIsOver = ref(false);
+const isDragging = ref(false);
+const hideTimer = useTimeoutFn(private_hide, HIDE_TIMEOUT, { immediate: false });
+
 useEventListener(listenOnDomNode, 'mouseover', private_onMouseOver);
 useEventListener(listenOnDomNode, 'mouseleave', private_onMouseLeave);
 
-let _mouseWheelToDispose: Fn | null = null;
+let _mouseWheelToDispose: (() => void) | null = null;
+let _resizeObserver: ResizeObserver | null = null;
 
-function dispose() {
+const disposeScrollable = () => {
   if (scrollable.value) {
     scrollable.value.dispose();
   }
-
+};
+const disposeMouseWheel = () => {
   if (_mouseWheelToDispose) {
     _mouseWheelToDispose();
     _mouseWheelToDispose = null;
   }
-}
+};
+const disposeResizeObserver = () => {
+  if (_resizeObserver) {
+    _resizeObserver.disconnect();
+    _resizeObserver = null;
+  }
+};
 
 tryOnMounted(() => {
-  if (props.autoResize && domNodeRef.value) {
-    const domNodeRect = domNodeRef.value.getClientRects()[0];
-    scrollDimension.width = domNodeRect.width;
-    scrollDimension.height = domNodeRect.height;
+  if (props.autoResize && domNodeRef.value && (typeof props.width === 'undefined' || typeof props.height === 'undefined')) {
+    const { clientWidth, clientHeight } = domNodeRef.value;
+    scrollDimension.width = clientWidth;
+    scrollDimension.height = clientHeight;
+    setScrollDimensions(scrollDimension);
+
+    _resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        let isChanged = false;
+
+        if (entry.contentBoxSize) {
+          const contentBoxSize: ResizeObserverSize = Array.isArray(entry.contentBoxSize) ? entry.contentBoxSize[0] : entry.contentBoxSize;
+          if (contentBoxSize.inlineSize !== scrollDimension.width) {
+            scrollDimension.width = contentBoxSize.inlineSize;
+            isChanged = true;
+          }
+
+          if (contentBoxSize.blockSize !== scrollDimension.height) {
+            scrollDimension.height = contentBoxSize.blockSize;
+            isChanged = true;
+          }
+        } else {
+          const { width, height } = entry.contentRect;
+          if (width !== scrollDimension.width) {
+            scrollDimension.width = width;
+            isChanged = true;
+          }
+
+          if (height !== scrollDimension.height) {
+            scrollDimension.height = height;
+            isChanged = true;
+          }
+        }
+        isChanged && setScrollDimensions(scrollDimension);
+      }
+    });
+    _resizeObserver.observe(domNodeRef.value);
   }
 });
 
-tryOnScopeDispose(dispose);
+tryOnScopeDispose(() => {
+  disposeScrollable();
+  disposeMouseWheel();
+  disposeResizeObserver();
+});
 
 watchEffect((onCleanup) => {
-  onCleanup(dispose);
+  onCleanup(disposeMouseWheel);
 
   if (props.handleMouseWheel && listenOnDomNode.value) {
     if (_mouseWheelToDispose) {
       _mouseWheelToDispose();
       _mouseWheelToDispose = null;
     } else if (listenOnDomNode.value) {
-      _mouseWheelToDispose = useEventListener(listenOnDomNode, 'wheel', private_onMouseWheel, { passive: false });
+      _mouseWheelToDispose = useEventListener(listenOnDomNode, 'wheel', domNodeMouseWheel, { passive: false });
     }
+  }
+
+  if (typeof props.width !== 'undefined') {
+    scrollDimension.width = props.width;
+    setScrollDimensions(scrollDimension);
+    disposeResizeObserver();
+  }
+
+  if (typeof props.scrollWidth !== 'undefined') {
+    scrollDimension.scrollWidth = props.scrollWidth;
+    setScrollDimensions(scrollDimension);
+  }
+
+  if (typeof props.height !== 'undefined') {
+    scrollDimension.height = props.height;
+    setScrollDimensions(scrollDimension);
+    disposeResizeObserver();
+  }
+
+  if (typeof props.scrollHeight !== 'undefined') {
+    scrollDimension.scrollHeight = props.scrollHeight;
+    setScrollDimensions(scrollDimension);
   }
 
   // console.log(scrollable.value._state);
@@ -117,11 +189,9 @@ watch(() => props.smoothScrollDuration, (value) => {
 });
 
 watch(
-  [props.scheduleAtNextAnimationFrame, props.forceIntegerValues],
+  () => [props.scheduleAtNextAnimationFrame, props.forceIntegerValues],
   () => {
-    if (scrollable.value) {
-      scrollable.value.dispose();
-    }
+    disposeScrollable();
 
     scrollable.value = new Scrollable({
       onScroll,
@@ -132,16 +202,23 @@ watch(
   },
 );
 
-function setScrollDimensions(dimension: INewScrollDimensions) {
-  scrollable.value.setScrollDimensions(dimension, false);
+function setScrollDimensions(dimension: INewScrollDimensions, useRawScrollPosition = false) {
+  scrollable.value.setScrollDimensions(dimension, useRawScrollPosition);
 }
 
 defineExpose({
   setScrollDimensions,
 });
 
-function private_onMouseWheel(originEvent: IMouseWheelEvent) {
-  const e = new StandardWheelEvent(originEvent);
+function domNodeMouseWheel(e: IMouseWheelEvent) {
+  private_onMouseWheel(new StandardWheelEvent(e));
+}
+
+function scrollbarMouseWheel(e: StandardWheelEvent) {
+  private_onMouseWheel(e);
+}
+
+function private_onMouseWheel(e: StandardWheelEvent) {
   if (e.browserEvent?.defaultPrevented) {
     return;
   }
@@ -245,19 +322,16 @@ function private_onMouseWheel(originEvent: IMouseWheelEvent) {
 }
 
 // -------------------- fade in / fade out --------------------
-const mouseIsOver = ref(false);
-const isDragging = ref(false);
-const hideTimer = useTimeoutFn(private_hide, HIDE_TIMEOUT, { immediate: false });
 
-// function private_onDragStart() {
-//   isDragging.value = true;
-//   private_reveal();
-// }
+function scrollbarDragStart() {
+  isDragging.value = true;
+  private_reveal();
+}
 
-// function private_onDragEnd() {
-//   isDragging.value = false;
-//   private_hide();
-// }
+function scrollbarDragEnd() {
+  isDragging.value = false;
+  private_hide();
+}
 
 function private_onMouseOver() {
   mouseIsOver.value = true;
@@ -293,6 +367,23 @@ function private_scheduleHide() {
   <div ref="domNodeRef" class="monaco-scrollable-element" role="presentation" style="position: relative; overflow: hidden;">
     <slot />
 
+    <!--
+      <HorizontalScrollbar
+      ref="horizontalScrollbarRef"
+      :visibility="horizontal"
+      :has-arrows="horizontalHasArrows"
+      :arrow-size="arrowSize"
+      :scrollbar-size="computedHorizontalScrollbarSize"
+      :opposite-scrollbar-size="computedVerticalScrollbarSize"
+      :slider-size="computedHorizontalSliderSize"
+      :scrollable="scrollable"
+      :scroll-by-page="scrollByPage"
+      @host-mousewheel="scrollbarMouseWheel"
+      @host-dragstart="scrollbarDragStart"
+      @host-dragend="scrollbarDragEnd"
+      />
+    -->
+
     <VerticalScrollbar
       ref="verticalScrollbarRef"
       :visibility="vertical"
@@ -303,6 +394,9 @@ function private_scheduleHide() {
       :slider-size="computedVerticalSliderSize"
       :scrollable="scrollable"
       :scroll-by-page="scrollByPage"
+      @host-mousewheel="scrollbarMouseWheel"
+      @host-dragstart="scrollbarDragStart"
+      @host-dragend="scrollbarDragEnd"
     />
   </div>
 </template>

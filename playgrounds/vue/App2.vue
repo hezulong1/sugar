@@ -9,12 +9,14 @@ import { onMounted, reactive, ref } from 'vue';
 const containerRef = ref<InstanceType<typeof ScrollableElement>>();
 const contentRef = ref<HTMLElement>();
 const contentStyle = reactive<CSSProperties>({
+  width: '0px',
+  height: '0px',
   top: '0px',
   left: '0px',
 });
 
 const forceIntegerValues = ref(true);
-const smoothScrollDuration = ref(2000);
+const smoothScrollDuration = ref(125);
 
 // let widthRef = ref(200.3);
 // let scrollWidthRef = ref(400.8);
@@ -29,29 +31,39 @@ const smoothScrollDuration = ref(2000);
 
 const onScroll = (e: ScrollEvent) => {
   if (e.scrollTopChanged) {
-    contentStyle.top = -1 * e.scrollTop + 'px';
+    // contentStyle.top = -1 * e.scrollTop + 'px';
+    contentRef.value!.scrollTop = e.scrollTop;
   }
 
   if (e.scrollLeftChanged) {
-    contentStyle.left = -1 * e.scrollLeft + 'px';
+    // contentStyle.left = -1 * e.scrollLeft + 'px';
+    contentRef.value!.scrollLeft = e.scrollLeft;
   }
 };
+
+const scrollDimension = reactive({
+  scrollWidth: 0,
+  scrollHeight: 0,
+});
 
 onMounted(update);
 
 function update() {
-  if (!containerRef.value) return;
+  // if (!containerRef.value) return;
   if (!contentRef.value) return;
 
-  const { clientWidth, clientHeight } = containerRef.value.$el as HTMLElement;
+  // const { clientWidth, clientHeight } = containerRef.value.$el as HTMLElement;
   const { scrollWidth, scrollHeight } = contentRef.value;
-
-  containerRef.value.setScrollDimensions({
-    width: clientWidth,
-    height: clientHeight,
-    scrollWidth,
-    scrollHeight,
-  });
+  scrollDimension.scrollWidth = scrollWidth;
+  scrollDimension.scrollHeight = scrollHeight;
+  // contentStyle.width = scrollWidth + 'px';
+  // contentStyle.height = scrollHeight + 'px';
+  // containerRef.value.setScrollDimensions({
+  //   width: clientWidth,
+  //   height: clientHeight,
+  //   scrollWidth,
+  //   scrollHeight,
+  // });
 }
 
 </script>
@@ -68,8 +80,16 @@ function update() {
     <input v-model="scrollLeftRef" type="number" step="0.1" min="0">
     {{ scrollEvent }}
   -->
-  <ScrollableElement ref="containerRef" class="container" :force-integer-values="forceIntegerValues" :smooth-scroll-duration="smoothScrollDuration" @scroll="onScroll">
-    <div ref="contentRef" class="monaco-list-rows" :style="contentStyle">
+  <ScrollableElement
+    ref="containerRef"
+    class="container"
+    :force-integer-values="forceIntegerValues"
+    :smooth-scroll-duration="smoothScrollDuration"
+    :scroll-width="scrollDimension.scrollWidth"
+    :scroll-height="scrollDimension.scrollHeight"
+    @scroll="onScroll"
+  >
+    <div ref="contentRef" class="monaco-list-rows" style="overflow: hidden;">
       <div v-for="i of 100" :key="i" :style="`width: 350px; margin-block: 2px; border: ${ i % 2 ? '1px solid blue' : '1px solid red' }`">{{ i }}</div>
     </div>
   </ScrollableElement>

@@ -1,6 +1,6 @@
 import type { SetupContext } from 'vue-demi';
 import type { MaybeRefOrGetter } from '@vueuse/core';
-import type { UseScrollbarStateReturn } from './scrollbarState';
+import type { ScrollbarState } from './scrollbarState';
 import type { INewScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility } from './scrollable';
 
 import { computed, ref } from 'vue-demi';
@@ -50,7 +50,7 @@ export interface UseScrollbarEmits {
 }
 
 export interface UseScrollbarOptions {
-  scrollbarState: UseScrollbarStateReturn;
+  scrollbarState: MaybeRefOrGetter<ScrollbarState>;
   scrollable: MaybeRefOrGetter<Scrollable>;
 
   lazyRender: MaybeRefOrGetter<boolean>;
@@ -80,7 +80,7 @@ export function useScrollbar(opts: UseScrollbarOptions, emit: SetupContext<UseSc
   const visibilityController = useScrollbarVisibilityController(opts.visibility, _visibleClassName, _invisibleClassName);
 
   const scrollable = computed(() => toValue(opts.scrollable));
-  const scrollbarState = opts.scrollbarState;
+  const scrollbarState = computed(() => toValue(opts.scrollbarState));
   const scrollByPage = computed(() => toValue(opts.scrollByPage));
   const lazyRender = computed(() => toValue(opts.lazyRender));
 
@@ -99,11 +99,11 @@ export function useScrollbar(opts: UseScrollbarOptions, emit: SetupContext<UseSc
     }
 
     const offset = opts._pointerDownRelativePosition(offsetX, offsetY);
-
-    _setDesiredScrollPositionNow((scrollByPage.value
-      ? scrollbarState.getDesiredScrollPositionFromOffsetPaged(offset)
-      : scrollbarState.getDesiredScrollPositionFromOffset(offset)
-    ).value);
+    _setDesiredScrollPositionNow(
+      scrollByPage.value
+        ? scrollbarState.value.getDesiredScrollPositionFromOffsetPaged(offset)
+        : scrollbarState.value.getDesiredScrollPositionFromOffset(offset),
+    );
 
     if (e.button === 0) {
       // left button
@@ -119,7 +119,7 @@ export function useScrollbar(opts: UseScrollbarOptions, emit: SetupContext<UseSc
 
     const initialPointerPosition = opts._sliderPointerPosition(e);
     const initialPointerOrthogonalPosition = opts._sliderOrthogonalPointerPosition(e);
-    const initialScrollbarState = scrollbarState.clone();
+    const initialScrollbarState = scrollbarState.value.clone();
     sliderActive.value = true;
 
     pointerMoveMonitor.start(
@@ -132,7 +132,7 @@ export function useScrollbar(opts: UseScrollbarOptions, emit: SetupContext<UseSc
 
         if (isWindows && pointerOrthogonalDelta > POINTER_DRAG_RESET_DISTANCE) {
           // The pointer has wondered away from the scrollbar => reset dragging
-          _setDesiredScrollPositionNow(initialScrollbarState.scrollPosition);
+          _setDesiredScrollPositionNow(initialScrollbarState.getScrollPosition());
           return;
         }
 
@@ -156,10 +156,8 @@ export function useScrollbar(opts: UseScrollbarOptions, emit: SetupContext<UseSc
   }
 
   function _onElementSize(visibleSize: number): boolean {
-    const oldValue = scrollbarState.visibleSize.value;
-    if (oldValue !== visibleSize) {
-      scrollbarState.visibleSize.value = visibleSize;
-      visibilityController.setIsNeeded(scrollbarState.isNeeded.value);
+    if (scrollbarState.value.setVisibleSize(visibleSize)) {
+      visibilityController.setIsNeeded(scrollbarState.value.isNeeded());
       shouldRender.value = true;
       if (!lazyRender.value) {
         render();
@@ -169,10 +167,8 @@ export function useScrollbar(opts: UseScrollbarOptions, emit: SetupContext<UseSc
   }
 
   function _onElementScrollSize(elementScrollSize: number): boolean {
-    const oldValue = scrollbarState.scrollSize.value;
-    if (oldValue !== elementScrollSize) {
-      scrollbarState.scrollSize.value = elementScrollSize;
-      visibilityController.setIsNeeded(scrollbarState.isNeeded.value);
+    if (scrollbarState.value.setScrollSize(elementScrollSize)) {
+      visibilityController.setIsNeeded(scrollbarState.value.isNeeded());
       shouldRender.value = true;
       if (!lazyRender.value) {
         render();
@@ -182,10 +178,8 @@ export function useScrollbar(opts: UseScrollbarOptions, emit: SetupContext<UseSc
   }
 
   function _onElementScrollPosition(elementScrollPosition: number): boolean {
-    const oldValue = scrollbarState.scrollPosition.value;
-    if (oldValue !== elementScrollPosition) {
-      scrollbarState.scrollPosition.value = elementScrollPosition;
-      visibilityController.setIsNeeded(scrollbarState.isNeeded.value);
+    if (scrollbarState.value.setScrollPosition(elementScrollPosition)) {
+      visibilityController.setIsNeeded(scrollbarState.value.isNeeded());
       shouldRender.value = true;
       if (!lazyRender.value) {
         render();
@@ -206,16 +200,17 @@ export function useScrollbar(opts: UseScrollbarOptions, emit: SetupContext<UseSc
     if (!shouldRender.value) return;
     shouldRender.value = false;
 
-    opts._renderDomNode(scrollbarState.rectangleLargeSize.value, scrollbarState.rectangleSmallSize.value);
-    opts._updateSlider(scrollbarState.sliderSize.value, scrollbarState.arrowSize.value + scrollbarState.sliderPosition.value);
+    const { value: state } = scrollbarState;
+    opts._renderDomNode(state.getRectangleLargeSize(), state.getRectangleSmallSize());
+    opts._updateSlider(state.getSliderSize(), state.getArrowSize() + state.getSliderPosition());
   }
 
   function delegatePointerDown(e: PointerEvent): void {
     if (!domNodeRef.value) return;
 
     const domTop = domNodeRef.value.getClientRects()[0].top;
-    const sliderStart = domTop + scrollbarState.sliderPosition.value;
-    const sliderStop = domTop + scrollbarState.sliderPosition.value + scrollbarState.sliderSize.value;
+    const sliderStart = domTop + scrollbarState.value.getSliderPosition();
+    const sliderStop = domTop + scrollbarState.value.getSliderPosition() + scrollbarState.value.getSliderSize();
     const pointerPos = opts._sliderPointerPosition(e);
     if (sliderStart <= pointerPos && pointerPos <= sliderStop) {
       // Act as if it was a pointer down on the slider
@@ -264,7 +259,7 @@ export function useScrollbar(opts: UseScrollbarOptions, emit: SetupContext<UseSc
 
   function updateScrollbarSize(scrollbarSize: number): void {
     opts._updateScrollbarSize(scrollbarSize);
-    scrollbarState.scrollbarSize.value = scrollbarSize;
+    scrollbarState.value.setScrollbarSize(scrollbarSize);
     shouldRender.value = true;
     if (!lazyRender.value) {
       render();
@@ -277,7 +272,7 @@ export function useScrollbar(opts: UseScrollbarOptions, emit: SetupContext<UseSc
     sliderActive,
     isVisible: toRef(visibilityController, 'isVisible'),
     className: toRef(visibilityController, 'className'),
-    isNeeded: () => scrollbarState.isNeeded.value,
+    isNeeded: () => scrollbarState.value.isNeeded(),
     beginReveal,
     beginHide,
     render,

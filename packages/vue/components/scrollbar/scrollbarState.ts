@@ -1,6 +1,12 @@
-import { toValue, type MaybeRefOrGetter } from '@vueuse/core';
-import { computed, readonly, ref, watch } from 'vue-demi';
+import type { MaybeRefOrGetter } from '@vueuse/core';
 
+import { computed, ref, watch } from 'vue-demi';
+import { toValue } from '@vueuse/core';
+import { refRound } from '../../hooks/refRound';
+
+/**
+ * The minimal size of the slider (such that it can still be clickable) -- it is artificially enlarged.
+ */
 const MINIMUM_SLIDER_SIZE = 20;
 
 export class ScrollbarState {
@@ -237,99 +243,77 @@ export class ScrollbarState {
 }
 
 export function useScrollbarState(
-  rawArrowSize: MaybeRefOrGetter<number>,
-  rawScrollbarSize: MaybeRefOrGetter<number>,
-  rawOppositeScrollbarSize: MaybeRefOrGetter<number>,
-  rawVisibleSize: MaybeRefOrGetter<number>,
-  rawScrollSize: MaybeRefOrGetter<number>,
-  rawScrollPosition: MaybeRefOrGetter<number>,
+  initialArrowSize: number,
+  initialScrollbarSize: number,
+  initialOppositeScrollbarSize: number,
+  initialVisibleSize: number,
+  initialScrollSize: number,
+  initialScrollPosition: number,
 ) {
   /**
    * For the vertical scrollbar: the height of the scrollbar's arrows.
    * For the horizontal scrollbar: the width of the scrollbar's arrows.
    */
-  const arrowSize = computed(() => Math.round(toValue(rawArrowSize)));
+  const arrowSize = computed(() => Math.round(initialArrowSize));
 
   /**
    * For the vertical scrollbar: the width.
    * For the horizontal scrollbar: the height.
    */
-  const scrollbarSize = computed(() => Math.round(toValue(rawScrollbarSize)));
+  const scrollbarSize = refRound(initialScrollbarSize, true);
 
   /**
    * For the vertical scrollbar: the height of the pair horizontal scrollbar.
    * For the horizontal scrollbar: the width of the pair vertical scrollbar.
    */
-  const oppositeScrollbarSize = computed(() => Math.round(toValue(rawOppositeScrollbarSize)));
+  const oppositeScrollbarSize = refRound(initialOppositeScrollbarSize, true);
 
   /**
    * For the vertical scrollbar: the viewport height.
    * For the horizontal scrollbar: the viewport width.
    */
-  const visibleSize = ref(toValue(rawVisibleSize));
+  const visibleSize = refRound(initialVisibleSize);
 
   /**
    * For the vertical scrollbar: the scroll height.
    * For the horizontal scrollbar: the scroll width.
    */
-  const scrollSize = ref(toValue(rawScrollSize));
+  const scrollSize = refRound(initialScrollSize);
 
   /**
    * For the vertical scrollbar: the scroll top.
    * For the horizontal scrollbar: the scroll left.
    */
-  const scrollPosition = ref(toValue(rawScrollPosition));
+  const scrollPosition = refRound(initialScrollPosition);
 
-  watch(() => [
-    toValue(rawVisibleSize),
-    toValue(rawScrollSize),
-    toValue(rawScrollPosition),
-  ], ([_visibleSize, _scrollSize, _scrollPosition]) => {
-    const iVisibleSize = Math.round(_visibleSize);
-    if (visibleSize.value !== iVisibleSize) {
-      visibleSize.value = iVisibleSize;
-    }
+  let r = _computeValues(
+    oppositeScrollbarSize.value,
+    arrowSize.value,
+    visibleSize.value,
+    scrollSize.value,
+    scrollPosition.value,
+  );
 
-    const iScrollSize = Math.round(_scrollSize);
-    if (scrollSize.value !== iScrollSize) {
-      scrollSize.value = iScrollSize;
-    }
+  const _computedAvailableSize = ref(r.computedAvailableSize);
+  const _computedIsNeeded = ref(r.computedIsNeeded);
+  const _computedSliderSize = ref(r.computedSliderSize);
+  const _computedSliderRatio = ref(r.computedSliderRatio);
+  const _computedSliderPosition = ref(r.computedSliderPosition);
 
-    const iScrollPosition = Math.round(_scrollPosition);
-    if (scrollPosition.value !== iScrollPosition) {
-      scrollPosition.value = iScrollPosition;
-    }
+  watch([oppositeScrollbarSize, visibleSize, scrollSize, scrollPosition], () => {
+    let r = _computeValues(
+      oppositeScrollbarSize.value,
+      arrowSize.value,
+      visibleSize.value,
+      scrollSize.value,
+      scrollPosition.value,
+    );
+    _computedAvailableSize.value = r.computedAvailableSize;
+    _computedIsNeeded.value = r.computedIsNeeded;
+    _computedSliderSize.value = r.computedSliderSize;
+    _computedSliderRatio.value = r.computedSliderRatio;
+    _computedSliderPosition.value = r.computedSliderPosition;
   });
-
-  /**
-   * `visibleSize` - `oppositeScrollbarSize`
-   */
-  const _computedAvailableSize = computed(() => Math.max(0, visibleSize.value - oppositeScrollbarSize.value));
-  const _computedRepresentableSize = computed(() => Math.max(0, _computedAvailableSize.value - 2 * arrowSize.value));
-
-  /**
-   * (`scrollSize` > 0 && `scrollSize` > `visibleSize`)
-   */
-  const computedIsNeeded = computed(() => scrollSize.value > 0 && scrollSize.value > visibleSize.value);
-  const computedAvailableSize = computed(() => Math.round(_computedAvailableSize.value));
-  const computedSliderSize = computed(
-    () => computedIsNeeded.value
-      // We must artificially increase the size of the slider if needed, since the slider would be too small to grab with the mouse otherwise
-      ? Math.round(Math.max(MINIMUM_SLIDER_SIZE, Math.floor(visibleSize.value * _computedRepresentableSize.value / scrollSize.value)))
-      : Math.round(_computedRepresentableSize.value),
-  );
-  const computedSliderRatio = computed(
-    () => computedIsNeeded.value
-      // The slider can move from 0 to `computedRepresentableSize` - `computedSliderSize`
-      // in the same way `scrollPosition` can move from 0 to `scrollSize` - `visibleSize`.
-      ? (_computedRepresentableSize.value - computedSliderSize.value) / (scrollSize.value - visibleSize.value)
-      : 0,
-  );
-  const computedSliderPosition = computed(
-    () => computedIsNeeded.value
-      ? Math.round(scrollPosition.value * computedSliderRatio.value)
-      : 0,
-  );
 
   /**
    * Compute a desired `scrollPosition` such that `offset` ends up in the center of the slider.
@@ -337,13 +321,13 @@ export function useScrollbarState(
    */
   function getDesiredScrollPositionFromOffset(offset: MaybeRefOrGetter<number>) {
     return computed(() => {
-      if (!computedIsNeeded.value) {
+      if (!_computedIsNeeded.value) {
         // no need for a slider
         return 0;
       }
 
-      const desiredSliderPosition = toValue(offset) - arrowSize.value - computedSliderSize.value / 2;
-      return Math.round(desiredSliderPosition / computedSliderRatio.value);
+      const desiredSliderPosition = toValue(offset) - arrowSize.value - _computedSliderSize.value / 2;
+      return Math.round(desiredSliderPosition / _computedSliderRatio.value);
     });
   }
 
@@ -355,14 +339,14 @@ export function useScrollbarState(
    */
   function getDesiredScrollPositionFromOffsetPaged(offset: MaybeRefOrGetter<number>) {
     return computed(() => {
-      if (!computedIsNeeded.value) {
+      if (!_computedIsNeeded.value) {
         // no need for a slider
         return 0;
       }
 
       const correctedOffset = toValue(offset) - arrowSize.value; // compensate if has arrows
       let desiredScrollPosition = scrollPosition.value;
-      if (correctedOffset < computedSliderPosition.value) {
+      if (correctedOffset < _computedSliderPosition.value) {
         desiredScrollPosition -= visibleSize.value; // page up/left
       } else {
         desiredScrollPosition += visibleSize.value; // page down/right
@@ -374,28 +358,98 @@ export function useScrollbarState(
   /**
    * Compute a desired `scrollPosition` such that the slider moves by `delta`.
    */
-  function getDesiredScrollPositionFromDelta(delta: MaybeRefOrGetter<number>) {
+  function getDesiredScrollPositionFromDelta(delta: MaybeRefOrGetter<number>, sliderPosition?: number) {
     return computed(() => {
-      if (!computedIsNeeded.value) {
+      if (!_computedIsNeeded.value) {
         // no need for a slider
         return 0;
       }
 
-      const desiredSliderPosition = computedSliderPosition.value + toValue(delta);
-      return Math.round(desiredSliderPosition / computedSliderRatio.value);
+      const desiredSliderPosition = _computedSliderPosition.value + toValue(delta);
+      return Math.round(desiredSliderPosition / _computedSliderRatio.value);
     });
   }
 
+  function clone() {
+    const snapshot = {
+      scrollPosition: scrollPosition.value,
+      // computedAvailableSize: _computedAvailableSize.value,
+      computedIsNeeded: _computedIsNeeded.value,
+      // computedSliderSize: _computedSliderSize.value,
+      computedSliderRatio: _computedSliderRatio.value,
+      computedSliderPosition: _computedSliderPosition.value,
+    };
+
+    return {
+      scrollPosition: snapshot.scrollPosition,
+      getDesiredScrollPositionFromDelta(delta: number) {
+        if (!snapshot.computedIsNeeded) return 0;
+        const desiredSliderPosition = snapshot.computedSliderPosition + delta;
+        return Math.round(desiredSliderPosition / snapshot.computedSliderRatio);
+      },
+    };
+  }
+
   return {
-    arrowSize: readonly(arrowSize),
-    scrollPosition: readonly(scrollPosition),
-    rectangleLargeSize: readonly(computedAvailableSize),
-    rectangleSmallSize: readonly(scrollbarSize),
-    isNeeded: readonly(computedIsNeeded),
-    sliderSize: readonly(computedSliderSize),
-    sliderPosition: readonly(computedSliderPosition),
+    arrowSize,
+    scrollbarSize,
+    oppositeScrollbarSize,
+
+    visibleSize,
+    scrollSize,
+    scrollPosition,
+
+    rectangleLargeSize: computed(() => _computedAvailableSize.value),
+    rectangleSmallSize: computed(() => scrollbarSize.value),
+    isNeeded: computed(() => _computedIsNeeded.value),
+    sliderSize: computed(() => _computedSliderSize.value),
+    sliderPosition: computed(() => _computedSliderPosition.value),
+
+    clone,
+
     getDesiredScrollPositionFromOffset,
     getDesiredScrollPositionFromOffsetPaged,
     getDesiredScrollPositionFromDelta,
+  };
+}
+
+export type UseScrollbarStateReturn = ReturnType<typeof useScrollbarState>;
+
+function _computeValues(oppositeScrollbarSize: number, arrowSize: number, visibleSize: number, scrollSize: number, scrollPosition: number) {
+  const computedAvailableSize = Math.max(0, visibleSize - oppositeScrollbarSize);
+  const computedRepresentableSize = Math.max(0, computedAvailableSize - 2 * arrowSize);
+  const computedIsNeeded = (scrollSize > 0 && scrollSize > visibleSize);
+
+  if (!computedIsNeeded) {
+    // There is no need for a slider
+    return {
+      computedAvailableSize: Math.round(computedAvailableSize),
+      computedIsNeeded,
+      computedSliderSize: Math.round(computedRepresentableSize),
+      computedSliderRatio: 0,
+      computedSliderPosition: 0,
+    };
+  }
+
+  // We must artificially increase the size of the slider if needed, since the slider would be too small to grab with the mouse otherwise
+  const computedSliderSize = Math.round(Math.max(MINIMUM_SLIDER_SIZE, Math.floor(visibleSize * computedRepresentableSize / scrollSize)));
+
+  // The slider can move from 0 to `computedRepresentableSize` - `computedSliderSize`
+  // in the same way `scrollPosition` can move from 0 to `scrollSize` - `visibleSize`.
+  const computedSliderRatio = (computedRepresentableSize - computedSliderSize) / (scrollSize - visibleSize);
+  const computedSliderPosition = (scrollPosition * computedSliderRatio);
+
+  return {
+    /**
+     * `visibleSize` - `oppositeScrollbarSize`
+     */
+    computedAvailableSize: Math.round(computedAvailableSize),
+    /**
+     * (`scrollSize` > 0 && `scrollSize` > `visibleSize`)
+     */
+    computedIsNeeded,
+    computedSliderSize: Math.round(computedSliderSize),
+    computedSliderRatio,
+    computedSliderPosition: Math.round(computedSliderPosition),
   };
 }
