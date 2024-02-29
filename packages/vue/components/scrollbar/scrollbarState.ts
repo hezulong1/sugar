@@ -2,7 +2,6 @@ import type { MaybeRefOrGetter } from '@vueuse/core';
 
 import { computed, ref, watch } from 'vue-demi';
 import { toValue } from '@vueuse/core';
-import { refRound } from '../../hooks/refRound';
 
 /**
  * The minimal size of the slider (such that it can still be clickable) -- it is artificially enlarged.
@@ -243,55 +242,57 @@ export class ScrollbarState {
 }
 
 export function useScrollbarState(
-  initialArrowSize: number,
-  initialScrollbarSize: number,
-  initialOppositeScrollbarSize: number,
-  initialVisibleSize: number,
-  initialScrollSize: number,
-  initialScrollPosition: number,
+  initialArrowSize: MaybeRefOrGetter<number>,
+  initialScrollbarSize: MaybeRefOrGetter<number>,
+  initialOppositeScrollbarSize: MaybeRefOrGetter<number>,
+  initialVisibleSize: MaybeRefOrGetter<number>,
+  initialScrollSize: MaybeRefOrGetter<number>,
+  initialScrollPosition: MaybeRefOrGetter<number>,
 ) {
   /**
    * For the vertical scrollbar: the height of the scrollbar's arrows.
    * For the horizontal scrollbar: the width of the scrollbar's arrows.
    */
-  const arrowSize = computed(() => Math.round(initialArrowSize));
+  const arrowSize = computed(() => Math.round(toValue(initialArrowSize)));
 
   /**
    * For the vertical scrollbar: the width.
    * For the horizontal scrollbar: the height.
    */
-  const scrollbarSize = refRound(initialScrollbarSize, true);
+  const scrollbarSize = computed(() => Math.round(toValue(initialScrollbarSize)));
 
   /**
    * For the vertical scrollbar: the height of the pair horizontal scrollbar.
    * For the horizontal scrollbar: the width of the pair vertical scrollbar.
    */
-  const oppositeScrollbarSize = refRound(initialOppositeScrollbarSize, true);
+  const oppositeScrollbarSize = computed(() => Math.round(toValue(initialOppositeScrollbarSize)));
 
   /**
    * For the vertical scrollbar: the viewport height.
    * For the horizontal scrollbar: the viewport width.
    */
-  const visibleSize = refRound(initialVisibleSize);
+  const visibleSize = computed(() => Math.round(toValue(initialVisibleSize)));
 
   /**
    * For the vertical scrollbar: the scroll height.
    * For the horizontal scrollbar: the scroll width.
    */
-  const scrollSize = refRound(initialScrollSize);
+  const scrollSize = computed(() => Math.round(toValue(initialScrollSize)));
 
   /**
    * For the vertical scrollbar: the scroll top.
    * For the horizontal scrollbar: the scroll left.
    */
-  const scrollPosition = refRound(initialScrollPosition);
+  const scrollPosition = computed(() => Math.round(toValue(initialScrollPosition)));
 
+  // 首次计算 initialVisibleSize，initialScrollSize，initialScrollPosition 不做四舍五入
+  // 后续计算使用四舍五入
   let r = _computeValues(
     oppositeScrollbarSize.value,
     arrowSize.value,
-    visibleSize.value,
-    scrollSize.value,
-    scrollPosition.value,
+    toValue(initialVisibleSize),
+    toValue(initialScrollSize),
+    toValue(initialScrollPosition),
   );
 
   const _computedAvailableSize = ref(r.computedAvailableSize);
@@ -300,7 +301,7 @@ export function useScrollbarState(
   const _computedSliderRatio = ref(r.computedSliderRatio);
   const _computedSliderPosition = ref(r.computedSliderPosition);
 
-  watch([oppositeScrollbarSize, visibleSize, scrollSize, scrollPosition], () => {
+  watch([oppositeScrollbarSize, arrowSize, visibleSize, scrollSize, scrollPosition], () => {
     let r = _computeValues(
       oppositeScrollbarSize.value,
       arrowSize.value,
@@ -404,6 +405,8 @@ export function useScrollbarState(
     isNeeded: computed(() => _computedIsNeeded.value),
     sliderSize: computed(() => _computedSliderSize.value),
     sliderPosition: computed(() => _computedSliderPosition.value),
+
+    _sliderRadio: computed(() => _computedSliderRatio.value),
 
     clone,
 

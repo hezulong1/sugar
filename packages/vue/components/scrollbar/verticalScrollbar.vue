@@ -1,14 +1,13 @@
 <script setup lang="ts">
 import type { CSSProperties } from 'vue-demi';
-import type { ISimplifiedPointerEvent, ScrollbarOptions, ScrollbarEmits } from './scrollbar';
 import type { INewScrollPosition } from './scrollable';
-import type { UseScrollbarStateOptions } from './scrollbarState';
+import type { ISimplifiedPointerEvent, ScrollbarOptions, ScrollbarEmits, ScrollbarInstance } from './scrollbar';
 
-import { computed, ref } from 'vue-demi';
+import { computed, markRaw, ref } from 'vue-demi';
 import { toRef } from '@vueuse/core';
-import { useScrollbar } from './scrollbar';
 import { ScrollbarVisibility } from './scrollable';
-import { ScrollbarState, useScrollbarState } from './scrollbarState';
+import { useScrollbar } from './scrollbar';
+import { ScrollbarState } from './scrollbarState';
 import { ARROW_IMG_SIZE } from './scrollbarArrow';
 import ScrollbarArrow from './scrollbarArrow.vue';
 
@@ -18,42 +17,48 @@ const props = withDefaults(defineProps<ScrollbarOptions>(), {
 });
 const emit = defineEmits<ScrollbarEmits>();
 
-const computedArrowSize = computed(() => props.hasArrows ? props.arrowSize : 0);
 const computedScrollbarSize = computed(() => props.visibility === ScrollbarVisibility.Hidden ? 0 : props.scrollbarSize);
 
-const scrollDimensions = computed(() => props.scrollable.getScrollDimensions());
-const scrollPosition = computed(() => props.scrollable.getCurrentScrollPosition());
+let computedArrowSize = 0;
+let arrowDelta: number | undefined, scrollbarDelta: number | undefined;
 
-const scrollbarState = useScrollbarState(
-  computedArrowSize.value,
+if (props.hasArrows) {
+  computedArrowSize = props.arrowSize;
+  arrowDelta = (computedArrowSize - ARROW_IMG_SIZE) / 2;
+  scrollbarDelta = (computedScrollbarSize.value - ARROW_IMG_SIZE) / 2;
+}
+const scrollable = markRaw(props.scrollable);
+const scrollDimensions = scrollable.getScrollDimensions();
+const scrollPosition = scrollable.getCurrentScrollPosition();
+const scrollbarState = markRaw(new ScrollbarState(
+  computedArrowSize,
   computedScrollbarSize.value,
-  0,
-  scrollDimensions.value.height,
-  scrollDimensions.value.scrollHeight,
-  scrollPosition.value.scrollTop,
-);
-const scrollbarStyle = computed<CSSProperties>(() => ({
+  props.oppositeScrollbarSize,
+  scrollDimensions.height,
+  scrollDimensions.scrollHeight,
+  scrollPosition.scrollTop,
+));
+
+const scrollbarStyle = ref<CSSProperties>({
   position: 'absolute',
-  width: scrollbarState.rectangleSmallSize.value + 'px',
-  height: scrollbarState.rectangleLargeSize.value + 'px',
+  width: '0px',
+  height: '0px',
   top: '0px',
   right: '0px',
-}));
-const sliderStyle = computed<CSSProperties>(() => ({
+});
+const sliderStyle = ref<CSSProperties>({
   position: 'absolute',
-  top: scrollbarState.arrowSize.value + scrollbarState.scrollPosition.value + 'px',
+  top: 0,
   left: Math.floor((props.scrollbarSize - props.sliderSize) / 2) + 'px',
   width: props.sliderSize + 'px',
-  height: scrollbarState.sliderSize.value + 'px',
+  height: undefined,
   transform: 'translate3d(0px, 0px, 0px)',
   contain: 'strict',
-}));
+});
 
 function _renderDomNode(largeSize: number, smallSize: number): void {
   scrollbarStyle.value.width = smallSize + 'px';
   scrollbarStyle.value.height = largeSize + 'px';
-  scrollbarStyle.value.top = '0px';
-  scrollbarStyle.value.right = '0px';
 }
 
 function _updateSlider(sliderSize: number, sliderPosition: number): void {
@@ -82,6 +87,7 @@ function writeScrollPosition(target: INewScrollPosition, scrollPosition: number)
 }
 
 const {
+  shouldRender,
   domNodeRef,
   sliderActive,
   className,
@@ -97,12 +103,14 @@ const {
   createOnDidScroll,
   updateScrollbarSize,
 } = useScrollbar({
+  scrollable,
   scrollbarState,
-  scrollable: toRef(props, 'scrollable'),
+
   lazyRender: toRef(props, 'lazyRender'),
   visibility: toRef(props, 'visibility'),
   extraScrollbarClassName: 'vertical',
   scrollByPage: toRef(props, 'scrollByPage'),
+
   _renderDomNode,
   _updateSlider,
   _pointerDownRelativePosition,
@@ -112,10 +120,7 @@ const {
   writeScrollPosition,
 }, emit);
 
-const arrowDelta = computed(() => props.hasArrows ? ((computedArrowSize.value - ARROW_IMG_SIZE) / 2) : undefined);
-const scrollbarDelta = computed(() => props.hasArrows ? ((computedScrollbarSize.value - ARROW_IMG_SIZE) / 2) : undefined);
-
-defineExpose({
+defineExpose<Omit<ScrollbarInstance, '$el'>>({
   beginReveal,
   beginHide,
   render,
@@ -128,7 +133,15 @@ defineExpose({
 </script>
 
 <template>
-  <div ref="domNodeRef" role="presentation" aria-hidden="true" :class="className" :style="scrollbarStyle" @pointerdown="onDomNodePointerDown">
+  <div
+    v-if="!shouldRender"
+    ref="domNodeRef"
+    role="presentation"
+    aria-hidden="true"
+    :class="className"
+    :style="scrollbarStyle"
+    @pointerdown="onDomNodePointerDown"
+  >
     <template v-if="hasArrows">
       <ScrollbarArrow
         class="scra"

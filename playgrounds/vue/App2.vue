@@ -1,95 +1,58 @@
 <script setup lang="ts">
-import type { ScrollEvent } from '@local/vue';
-import { ScrollableElement } from '@local/vue';
 import type { CSSProperties } from 'vue';
-import { onMounted, reactive, ref } from 'vue';
+import type { ScrollEvent, ScrollableElementInstance } from '@local/vue';
 
-// import { useScrollState } from './hook';
+import { ScrollableElement, Scrollable, scheduleAtNextAnimationFrame } from '@local/vue';
+import { markRaw, nextTick, onMounted, onScopeDispose, reactive, ref } from 'vue';
 
-const containerRef = ref<InstanceType<typeof ScrollableElement>>();
+const domNodeRef = ref<ScrollableElementInstance>();
 const contentRef = ref<HTMLElement>();
 const contentStyle = reactive<CSSProperties>({
-  width: '0px',
-  height: '0px',
+  width: undefined,
+  height: undefined,
   top: '0px',
   left: '0px',
 });
 
-const forceIntegerValues = ref(true);
-const smoothScrollDuration = ref(125);
+const scrollable = markRaw(new Scrollable({
+  forceIntegerValues: true,
+  smoothScrollDuration: 125,
+  scheduleAtNextAnimationFrame: callback => scheduleAtNextAnimationFrame(callback),
+}));
 
-// let widthRef = ref(200.3);
-// let scrollWidthRef = ref(400.8);
-// let scrollLeftRef = 0.3;
+const ro = new ResizeObserver((entries) => {
+  for (const entry of entries) {
+    const { width, height } = entry.contentRect;
+    contentStyle.width = undefined;
+    contentStyle.height = undefined;
+    nextTick(() => {
+      if (!contentRef.value || !domNodeRef.value) return;
 
-// const scrollEvent = useScrollState(
-//   forceIntegerValues.value,
-//   widthRef,
-//   scrollWidthRef,
-//   scrollLeftRef,
-// );
-
-const onScroll = (e: ScrollEvent) => {
-  if (e.scrollTopChanged) {
-    // contentStyle.top = -1 * e.scrollTop + 'px';
-    contentRef.value!.scrollTop = e.scrollTop;
+      const { scrollWidth, scrollHeight } = contentRef.value;
+      domNodeRef.value.setScrollDimensions({ width, height, scrollWidth, scrollHeight });
+      contentStyle.width = scrollWidth + 'px';
+      contentStyle.height = scrollHeight + 'px';
+    });
   }
-
-  if (e.scrollLeftChanged) {
-    // contentStyle.left = -1 * e.scrollLeft + 'px';
-    contentRef.value!.scrollLeft = e.scrollLeft;
-  }
-};
-
-const scrollDimension = reactive({
-  scrollWidth: 0,
-  scrollHeight: 0,
 });
 
-onMounted(update);
+onMounted(() => {
+  domNodeRef.value && ro.observe(domNodeRef.value.$el);
+});
 
-function update() {
-  // if (!containerRef.value) return;
-  if (!contentRef.value) return;
+onScopeDispose(() => {
+  ro.disconnect();
+});
 
-  // const { clientWidth, clientHeight } = containerRef.value.$el as HTMLElement;
-  const { scrollWidth, scrollHeight } = contentRef.value;
-  scrollDimension.scrollWidth = scrollWidth;
-  scrollDimension.scrollHeight = scrollHeight;
-  // contentStyle.width = scrollWidth + 'px';
-  // contentStyle.height = scrollHeight + 'px';
-  // containerRef.value.setScrollDimensions({
-  //   width: clientWidth,
-  //   height: clientHeight,
-  //   scrollWidth,
-  //   scrollHeight,
-  // });
+function onScroll(e: ScrollEvent) {
+  contentStyle.top = e.scrollTop * -1 + 'px';
+  contentStyle.left = e.scrollLeft * -1 + 'px';
 }
-
 </script>
 
 <template>
-  <!--
-    <input v-model="smoothScrollDuration" type="number" min="0" max="125">
-    <input v-model="forceIntegerValues" type="checkbox">
-
-    <br>
-
-    <input v-model="widthRef" type="number" step="0.1" min="0">
-    <input v-model="scrollWidthRef" type="number" step="0.1" min="0">
-    <input v-model="scrollLeftRef" type="number" step="0.1" min="0">
-    {{ scrollEvent }}
-  -->
-  <ScrollableElement
-    ref="containerRef"
-    class="container"
-    :force-integer-values="forceIntegerValues"
-    :smooth-scroll-duration="smoothScrollDuration"
-    :scroll-width="scrollDimension.scrollWidth"
-    :scroll-height="scrollDimension.scrollHeight"
-    @scroll="onScroll"
-  >
-    <div ref="contentRef" class="monaco-list-rows" style="overflow: hidden;">
+  <ScrollableElement ref="domNodeRef" :scrollable="scrollable" @scroll="onScroll">
+    <div ref="contentRef" class="monaco-list-rows" :style="contentStyle">
       <div v-for="i of 100" :key="i" :style="`width: 350px; margin-block: 2px; border: ${ i % 2 ? '1px solid blue' : '1px solid red' }`">{{ i }}</div>
     </div>
   </ScrollableElement>

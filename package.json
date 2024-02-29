@@ -36,6 +36,8 @@
     "extends": "h21",
     "rules": {
       "no-undefined": 0,
+      "no-useless-constructor": 0,
+      "no-empty-function": [2, { "allow": ["constructors", "arrowFunctions"] }],
       "@stylistic/indent-binary-ops": 0,
       "@stylistic/operator-linebreak": [2, "after", {
         "overrides": {

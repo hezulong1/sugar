@@ -1,6 +1,6 @@
 import type { SetupContext } from 'vue-demi';
 import type { MaybeRefOrGetter } from '@vueuse/core';
-import type { UseScrollbarStateReturn } from './scrollbarState';
+import type { ScrollbarState } from './scrollbarState';
 import type { INewScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility } from './scrollable';
 
 import { computed, ref } from 'vue-demi';
@@ -25,15 +25,14 @@ export interface ISimplifiedPointerEvent {
 export interface ScrollbarOptions {
   lazyRender?: boolean;
   visibility?: ScrollbarVisibility;
+
   hasArrows?: boolean;
   arrowSize?: number;
-
   scrollbarSize: number;
   oppositeScrollbarSize: number;
   sliderSize: number;
 
   scrollable: Scrollable;
-
   scrollByPage: boolean;
 }
 
@@ -43,20 +42,47 @@ export interface ScrollbarEmits {
   (type: 'hostDragend'): void;
 }
 
-export interface UseScrollbarEmits {
-  hostMousewheel(event: StandardWheelEvent): void;
-  hostDragstart(): void;
-  hostDragend(): void;
+export interface ScrollbarInstance {
+  $el: Element;
+  /**
+   * 显示滚动条
+   */
+  beginReveal(): void;
+  /**
+   * 隐藏滚动条
+   */
+  beginHide(): void;
+  /**
+   * 更新滚动条样式
+   */
+  render(): void;
+  /**
+   * 代理滚动条拖动
+   */
+  delegatePointerDown(e: PointerEvent): void;
+  /**
+   * 更新滚动条的大小（水平滚动条指的是高度，垂直滚动条指的是宽度）
+   */
+  updateScrollbarSize(scrollbarSize: number): void;
+  /**
+   * 是否需要渲染滚动条
+   */
+  isNeeded(): boolean;
+  /**
+   * 更新滚动条内部状态 scrollHeight, scrollTop, height
+   */
+  onDidScroll(e: ScrollEvent): boolean;
+  writeScrollPosition(target: INewScrollPosition, scrollPosition: number): void;
 }
 
 export interface UseScrollbarOptions {
-  scrollbarState: UseScrollbarStateReturn;
-  scrollable: MaybeRefOrGetter<Scrollable>;
+  scrollable: Scrollable;
+  scrollbarState: ScrollbarState;
 
-  lazyRender: MaybeRefOrGetter<boolean>;
+  lazyRender?: MaybeRefOrGetter<boolean>;
   visibility: MaybeRefOrGetter<ScrollbarVisibility>;
-  extraScrollbarClassName: MaybeRefOrGetter<string>;
-  scrollByPage: MaybeRefOrGetter<boolean>;
+  extraScrollbarClassName: string;
+  scrollByPage?: MaybeRefOrGetter<boolean>;
 
   // ----------------- Overwrite these
 
@@ -69,18 +95,25 @@ export interface UseScrollbarOptions {
   writeScrollPosition(target: INewScrollPosition, scrollPosition: number): void;
 }
 
+export interface UseScrollbarEmits {
+  hostMousewheel(event: StandardWheelEvent): void;
+  hostDragstart(): void;
+  hostDragend(): void;
+}
+
 export function useScrollbar(opts: UseScrollbarOptions, emit: SetupContext<UseScrollbarEmits>['emit']) {
   const domNodeRef = ref<HTMLElement>();
   const sliderActive = ref(false);
   const shouldRender = ref(true);
 
   const pointerMoveMonitor = usePointerMove();
-  const _visibleClassName = computed(() => `visible scrollbar ${toValue(opts.extraScrollbarClassName)}`);
-  const _invisibleClassName = computed(() => `invisible scrollbar ${toValue(opts.extraScrollbarClassName)}`);
-  const visibilityController = useScrollbarVisibilityController(opts.visibility, _visibleClassName, _invisibleClassName);
+  const visibilityController = useScrollbarVisibilityController(
+    opts.visibility,
+    `visible scrollbar ${opts.extraScrollbarClassName}`,
+    `invisible scrollbar ${opts.extraScrollbarClassName}`,
+  );
 
-  const scrollable = computed(() => toValue(opts.scrollable));
-  const scrollbarState = opts.scrollbarState;
+  const { scrollbarState, scrollable } = opts;
   const scrollByPage = computed(() => toValue(opts.scrollByPage));
   const lazyRender = computed(() => toValue(opts.lazyRender));
 
@@ -99,11 +132,11 @@ export function useScrollbar(opts: UseScrollbarOptions, emit: SetupContext<UseSc
     }
 
     const offset = opts._pointerDownRelativePosition(offsetX, offsetY);
-
-    _setDesiredScrollPositionNow((scrollByPage.value
-      ? scrollbarState.getDesiredScrollPositionFromOffsetPaged(offset)
-      : scrollbarState.getDesiredScrollPositionFromOffset(offset)
-    ).value);
+    _setDesiredScrollPositionNow(
+      scrollByPage.value
+        ? scrollbarState.getDesiredScrollPositionFromOffsetPaged(offset)
+        : scrollbarState.getDesiredScrollPositionFromOffset(offset),
+    );
 
     if (e.button === 0) {
       // left button
@@ -132,11 +165,11 @@ export function useScrollbar(opts: UseScrollbarOptions, emit: SetupContext<UseSc
 
         if (isWindows && pointerOrthogonalDelta > POINTER_DRAG_RESET_DISTANCE) {
           // The pointer has wondered away from the scrollbar => reset dragging
-          _setDesiredScrollPositionNow(initialScrollbarState.scrollPosition);
+          _setDesiredScrollPositionNow(initialScrollbarState.getScrollPosition());
           return;
         }
 
-        const pointerPosition = pointerMoveData.pageY;
+        const pointerPosition = opts._sliderPointerPosition(pointerMoveData);
         const pointerDelta = pointerPosition - initialPointerPosition;
         _setDesiredScrollPositionNow(initialScrollbarState.getDesiredScrollPositionFromDelta(pointerDelta));
       },
@@ -152,14 +185,12 @@ export function useScrollbar(opts: UseScrollbarOptions, emit: SetupContext<UseSc
   function _setDesiredScrollPositionNow(_desiredScrollPosition: number): void {
     const desiredScrollPosition: INewScrollPosition = {};
     opts.writeScrollPosition(desiredScrollPosition, _desiredScrollPosition);
-    scrollable.value.setScrollPositionNow(desiredScrollPosition);
+    scrollable.setScrollPositionNow(desiredScrollPosition);
   }
 
   function _onElementSize(visibleSize: number): boolean {
-    const oldValue = scrollbarState.visibleSize.value;
-    if (oldValue !== visibleSize) {
-      scrollbarState.visibleSize.value = visibleSize;
-      visibilityController.setIsNeeded(scrollbarState.isNeeded.value);
+    if (scrollbarState.setVisibleSize(visibleSize)) {
+      visibilityController.setIsNeeded(scrollbarState.isNeeded());
       shouldRender.value = true;
       if (!lazyRender.value) {
         render();
@@ -169,10 +200,8 @@ export function useScrollbar(opts: UseScrollbarOptions, emit: SetupContext<UseSc
   }
 
   function _onElementScrollSize(elementScrollSize: number): boolean {
-    const oldValue = scrollbarState.scrollSize.value;
-    if (oldValue !== elementScrollSize) {
-      scrollbarState.scrollSize.value = elementScrollSize;
-      visibilityController.setIsNeeded(scrollbarState.isNeeded.value);
+    if (scrollbarState.setScrollSize(elementScrollSize)) {
+      visibilityController.setIsNeeded(scrollbarState.isNeeded());
       shouldRender.value = true;
       if (!lazyRender.value) {
         render();
@@ -182,10 +211,8 @@ export function useScrollbar(opts: UseScrollbarOptions, emit: SetupContext<UseSc
   }
 
   function _onElementScrollPosition(elementScrollPosition: number): boolean {
-    const oldValue = scrollbarState.scrollPosition.value;
-    if (oldValue !== elementScrollPosition) {
-      scrollbarState.scrollPosition.value = elementScrollPosition;
-      visibilityController.setIsNeeded(scrollbarState.isNeeded.value);
+    if (scrollbarState.setScrollPosition(elementScrollPosition)) {
+      visibilityController.setIsNeeded(scrollbarState.isNeeded());
       shouldRender.value = true;
       if (!lazyRender.value) {
         render();
@@ -206,16 +233,16 @@ export function useScrollbar(opts: UseScrollbarOptions, emit: SetupContext<UseSc
     if (!shouldRender.value) return;
     shouldRender.value = false;
 
-    opts._renderDomNode(scrollbarState.rectangleLargeSize.value, scrollbarState.rectangleSmallSize.value);
-    opts._updateSlider(scrollbarState.sliderSize.value, scrollbarState.arrowSize.value + scrollbarState.sliderPosition.value);
+    opts._renderDomNode(scrollbarState.getRectangleLargeSize(), scrollbarState.getRectangleSmallSize());
+    opts._updateSlider(scrollbarState.getSliderSize(), scrollbarState.getArrowSize() + scrollbarState.getSliderPosition());
   }
 
   function delegatePointerDown(e: PointerEvent): void {
     if (!domNodeRef.value) return;
 
     const domTop = domNodeRef.value.getClientRects()[0].top;
-    const sliderStart = domTop + scrollbarState.sliderPosition.value;
-    const sliderStop = domTop + scrollbarState.sliderPosition.value + scrollbarState.sliderSize.value;
+    const sliderStart = domTop + scrollbarState.getSliderPosition();
+    const sliderStop = domTop + scrollbarState.getSliderPosition() + scrollbarState.getSliderSize();
     const pointerPos = opts._sliderPointerPosition(e);
     if (sliderStart <= pointerPos && pointerPos <= sliderStop) {
       // Act as if it was a pointer down on the slider
@@ -249,11 +276,15 @@ export function useScrollbar(opts: UseScrollbarOptions, emit: SetupContext<UseSc
     }
   }
 
-  function onHostMousewheel(deltaX: number, deltaY: number) {
+  function onHostMousewheel(deltaX: number, deltaY: number): void {
     emit('hostMousewheel', new StandardWheelEvent(null, deltaX, deltaY));
   }
 
-  function createOnDidScroll(scrollSizeProp: 'scrollWidth' | 'scrollHeight', scrollPositionProp: 'scrollLeft' | 'scrollTop', sizeProp: 'width' | 'height'): (e: ScrollEvent) => void {
+  function createOnDidScroll(
+    scrollSizeProp: 'scrollWidth' | 'scrollHeight',
+    scrollPositionProp: 'scrollLeft' | 'scrollTop',
+    sizeProp: 'width' | 'height',
+  ): (e: ScrollEvent) => boolean {
     return function onDidScroll(e: ScrollEvent): boolean {
       shouldRender.value = _onElementScrollSize(e[scrollSizeProp]) || shouldRender.value;
       shouldRender.value = _onElementScrollPosition(e[scrollPositionProp]) || shouldRender.value;
@@ -264,7 +295,7 @@ export function useScrollbar(opts: UseScrollbarOptions, emit: SetupContext<UseSc
 
   function updateScrollbarSize(scrollbarSize: number): void {
     opts._updateScrollbarSize(scrollbarSize);
-    scrollbarState.scrollbarSize.value = scrollbarSize;
+    scrollbarState.setScrollbarSize(scrollbarSize);
     shouldRender.value = true;
     if (!lazyRender.value) {
       render();
@@ -277,7 +308,7 @@ export function useScrollbar(opts: UseScrollbarOptions, emit: SetupContext<UseSc
     sliderActive,
     isVisible: toRef(visibilityController, 'isVisible'),
     className: toRef(visibilityController, 'className'),
-    isNeeded: () => scrollbarState.isNeeded.value,
+    isNeeded: scrollbarState.isNeeded,
     beginReveal,
     beginHide,
     render,

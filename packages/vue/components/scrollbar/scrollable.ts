@@ -1,4 +1,5 @@
 import type { IDisposable } from '../../utils/disposable';
+import { SimpleEmitter } from '../../utils/simpleEmitter';
 
 export const enum ScrollbarVisibility {
   Auto = 1,
@@ -330,10 +331,6 @@ export interface IScrollableCallback {
 
 export interface IScrollableOptions {
   /**
-   * Callback
-   */
-  onScroll: IScrollableCallback;
-  /**
    * Define if the scroll values should always be integers.
    */
   forceIntegerValues: boolean;
@@ -352,13 +349,13 @@ export class Scrollable implements IDisposable {
 
   private _smoothScrollDuration: number;
   private readonly _scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable;
-  _state: ScrollState;
+  private _state: ScrollState;
   private _smoothScrolling: SmoothScrollingOperation | null;
 
-  public readonly onScroll: IScrollableCallback;
+  private _onScroll = new SimpleEmitter<ScrollEvent>();
+  public readonly onScroll = this._onScroll.event;
 
   constructor(options: IScrollableOptions) {
-    this.onScroll = options.onScroll;
     this._smoothScrollDuration = options.smoothScrollDuration;
     this._scheduleAtNextAnimationFrame = options.scheduleAtNextAnimationFrame;
     this._state = new ScrollState(options.forceIntegerValues, 0, 0, 0, 0, 0, 0);
@@ -366,6 +363,8 @@ export class Scrollable implements IDisposable {
   }
 
   public dispose(): void {
+    this._onScroll.dispose();
+
     if (this._smoothScrolling) {
       this._smoothScrolling.dispose();
       this._smoothScrolling = null;
@@ -511,6 +510,6 @@ export class Scrollable implements IDisposable {
       return;
     }
     this._state = newState;
-    this.onScroll?.(this._state.createScrollEvent(oldState, inSmoothScrolling));
+    this._onScroll.fire(this._state.createScrollEvent(oldState, inSmoothScrolling));
   }
 }
