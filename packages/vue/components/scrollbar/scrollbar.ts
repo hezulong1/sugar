@@ -43,7 +43,6 @@ export interface ScrollbarEmits {
 }
 
 export interface ScrollbarInstance {
-  $el: Element;
   /**
    * 显示滚动条
    */

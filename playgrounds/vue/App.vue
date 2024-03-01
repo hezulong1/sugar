@@ -1,49 +1,45 @@
 <script setup lang="ts">
-import { ref } from 'vue';
-import { useScrollbarState } from '@local/vue';
+import type { CSSProperties } from 'vue';
+import type { ScrollEvent, ScrollableElementInstance } from '@local/vue';
 
-const delta = ref(0);
+import { ScrollableElement, Scrollable, scheduleAtNextAnimationFrame } from '@local/vue';
+import { markRaw, onMounted, reactive, ref } from 'vue';
 
-const arrowSize = ref(11.2);
-const scrollbarSize = ref(10);
-const oppositeScrollbarSize = ref(10);
-const visibleSize = ref(300.5);
-const scrollSize = ref(800.7);
-const scrollPosition = ref(40.3);
+const domNodeRef = ref<ScrollableElementInstance>();
+const contentStyle = reactive<CSSProperties>({
+  top: '0px',
+  left: '0px',
+});
 
-const {
-  rectangleLargeSize,
-  rectangleSmallSize,
-  isNeeded,
-  sliderSize,
-  sliderPosition,
+const scrollable = markRaw(new Scrollable({
+  forceIntegerValues: true,
+  smoothScrollDuration: 125,
+  scheduleAtNextAnimationFrame: callback => scheduleAtNextAnimationFrame(callback),
+}));
 
-  _sliderRadio,
+onMounted(() => {
+  domNodeRef.value?.setScrollDimensions({
+    width: 300,
+    scrollWidth: 400,
+    height: 280,
+    scrollHeight: 500,
+  });
+});
 
-  getDesiredScrollPositionFromOffset,
-  getDesiredScrollPositionFromOffsetPaged,
-  getDesiredScrollPositionFromDelta,
-} = useScrollbarState(arrowSize, scrollbarSize, oppositeScrollbarSize, visibleSize, scrollSize, scrollPosition);
-
+function onScroll(e: ScrollEvent) {
+  contentStyle.top = e.scrollTop * -1 + 'px';
+  contentStyle.left = e.scrollLeft * -1 + 'px';
+}
 </script>
 
 <template>
-  <p>_sliderRadio: {{ _sliderRadio }}</p>
-  <p>arrowSize: {{ arrowSize }} <input v-model="arrowSize" type="number" min="0"></p>
-  <p>scrollbarSize: {{ scrollbarSize }} <input v-model="scrollbarSize" type="number" step="0.1" min="0"></p>
-  <p>oppositeScrollbarSize: {{ oppositeScrollbarSize }} <input v-model="oppositeScrollbarSize" type="number" step="0.1" min="0"></p>
-  <p>visibleSize: {{ visibleSize }} <input v-model="visibleSize" type="number" step="0.1" min="0"></p>
-  <p>scrollSize: {{ scrollSize }} <input v-model="scrollSize" type="number" step="0.1" min="0"></p>
-  <p>scrollPosition: {{ scrollPosition }} <input v-model="scrollPosition" type="number" step="0.1" min="0"></p>
-  <hr>
-  <p>rectangleLargeSize: {{ rectangleLargeSize }}</p>
-  <p>rectangleSmallSize: {{ rectangleSmallSize }}</p>
-  <p>isNeeded: {{ isNeeded }}</p>
-  <p>sliderSize: {{ sliderSize }}</p>
-  <p>sliderPosition: {{ sliderPosition }}</p>
-  <hr>
-  <p><input v-model="delta" type="number" step="1" min="0"></p>
-  <p>getDesiredScrollPositionFromOffset: {{ getDesiredScrollPositionFromOffset(delta) }}</p>
-  <p>getDesiredScrollPositionFromOffsetPaged: {{ getDesiredScrollPositionFromOffsetPaged(delta) }}</p>
-  <p>getDesiredScrollPositionFromDelta: {{ getDesiredScrollPositionFromDelta(delta) }}</p>
+  <ScrollableElement ref="domNodeRef" :scrollable="scrollable" @scroll="onScroll">
+    <!--
+      <div ref="contentRef" class="monaco-list-rows" :style="contentStyle">
+      <div v-for="i of 100" :key="i" :style="`width: 350px; margin-block: 2px; border: ${ i % 2 ? '1px solid blue' : '1px solid red' }`">{{ i }}</div>
+      </div>
+    -->
+    <div :style="contentStyle" style="position: relative; width: 400px; height: 200px; background-color: red;" />
+    <div :style="contentStyle" style="position: relative; width: 400px; height: 300px; background-color: yellowgreen;" />
+  </ScrollableElement>
 </template>

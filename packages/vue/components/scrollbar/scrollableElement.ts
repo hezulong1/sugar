@@ -265,7 +265,6 @@ export interface ScrollableElementEmits {
 }
 
 export interface ScrollableElementInstance {
-  $el: Element;
   setScrollDimensions(dimension: INewScrollDimensions, useRawScrollPosition?: boolean): void;
 }
 
@@ -308,6 +307,9 @@ export function useScrollableElement(opts: UseScrollableElementOptions, emit: Se
   const shouldRender = ref(true);
   const isDragging = ref(false);
   const mouseIsOver = ref(false);
+  const leftShadowClassName = ref('');
+  const topShadowClassName = ref('');
+  const topLeftShadowClassName = ref('');
   const hideTimeout = useTimeoutFn(_hide, HIDE_TIMEOUT, { immediate: false });
 
   const verticalScrollbar = ref<ScrollbarInstance>();
@@ -480,17 +482,22 @@ export function useScrollableElement(opts: UseScrollableElementOptions, emit: Se
     horizontalScrollbar.value?.render();
     verticalScrollbar.value?.render();
 
-    if (useShadows) {
-      // const scrollState = scrollable.getCurrentScrollPosition();
-      // const enableTop = scrollState.scrollTop > 0;
-      // const enableLeft = scrollState.scrollLeft > 0;
+    leftShadowClassName.value = '';
+    topShadowClassName.value = '';
+    topLeftShadowClassName.value = '';
 
-      // const leftClassName = (enableLeft ? ' left' : '');
-      // const topClassName = (enableTop ? ' top' : '');
-      // const topLeftClassName = (enableLeft || enableTop ? ' top-left-corner' : '');
-      // this._leftShadowDomNode!.className = `shadow${leftClassName}`
-      // this._topShadowDomNode!.className = `shadow${topClassName}`
-      // this._topLeftShadowDomNode!.className = `shadow${topLeftClassName}${topClassName}${leftClassName}`
+    if (useShadows) {
+      const scrollState = scrollable.getCurrentScrollPosition();
+      const enableTop = scrollState.scrollTop > 0;
+      const enableLeft = scrollState.scrollLeft > 0;
+
+      const leftClassName = (enableLeft ? ' left' : '');
+      const topClassName = (enableTop ? ' top' : '');
+      const topLeftClassName = (enableLeft || enableTop ? ' top-left-corner' : '');
+
+      leftShadowClassName.value = leftClassName;
+      topShadowClassName.value = topClassName;
+      topLeftShadowClassName.value = `${topLeftClassName}${topClassName}${leftClassName}`;
     }
   }
 
@@ -548,6 +555,10 @@ export function useScrollableElement(opts: UseScrollableElementOptions, emit: Se
   }
 
   return {
+    leftShadowClassName,
+    topShadowClassName,
+    topLeftShadowClassName,
+
     horizontalScrollbarRef: horizontalScrollbar,
     verticalScrollbarRef: verticalScrollbar,
 

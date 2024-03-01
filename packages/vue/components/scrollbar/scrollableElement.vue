@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { ScrollableElementOptions, ScrollableElementEmits, ScrollableElementInstance } from './scrollableElement';
 
-import { computed, markRaw, ref, useSlots, watchEffect } from 'vue-demi';
+import { computed, markRaw, ref, useSlots, watch, watchEffect } from 'vue-demi';
 import { useEventListener, tryOnScopeDispose } from '@vueuse/core';
 
 import { ScrollbarVisibility } from './scrollable';
@@ -25,12 +25,12 @@ const props = withDefaults(defineProps<ScrollableElementOptions>(), {
   revealOnScroll: true,
 });
 const emit = defineEmits<ScrollableElementEmits>();
-const slots = useSlots();
-const onlyOneSlot = computed(() => {
-  const defaultSlot = slots['default']?.();
-  return defaultSlot ? (defaultSlot.length === 1) : false;
-});
+
 const {
+  leftShadowClassName,
+  topShadowClassName,
+  topLeftShadowClassName,
+
   horizontalScrollbarRef,
   verticalScrollbarRef,
   onDomNodeMouseWheel,
@@ -64,6 +64,22 @@ const listenOnDomNode = computed(() => typeof props.listenOnDomNode !== 'undefin
 useEventListener(listenOnDomNode, 'mouseover', onDomNodeMouseOver);
 useEventListener(listenOnDomNode, 'mouseleave', onDomNodeMouseLeave);
 
+const slots = useSlots();
+function setOverflow(domNode: HTMLElement | undefined) {
+  if (!domNode) return;
+
+  const defaultSlot = slots['default']?.();
+  // TODO 需要过滤
+  const onlyChild = defaultSlot ? (defaultSlot.length === 1) : false;
+  if (!onlyChild) return;
+
+  const children = Array.from(domNode.children) as HTMLElement[];
+  const target = children.find(el => el.matches(':not(.scrollbar):not(.shadow)'));
+  if (target) target.style.overflow = 'hidden';
+}
+
+watch(domNodeRef, setOverflow, { flush: 'post' });
+
 let _mouseWheelToDispose: (() => void) | null = null;
 
 const disposeMouseWheel = () => {
@@ -81,10 +97,7 @@ watchEffect((onCleanup) => {
   onCleanup(disposeMouseWheel);
 
   if (props.handleMouseWheel && listenOnDomNode.value) {
-    if (_mouseWheelToDispose) {
-      _mouseWheelToDispose();
-      _mouseWheelToDispose = null;
-    }
+    disposeMouseWheel();
 
     if (listenOnDomNode.value) {
       _mouseWheelToDispose = useEventListener(listenOnDomNode, 'wheel', onDomNodeMouseWheel, { passive: false });
@@ -92,18 +105,14 @@ watchEffect((onCleanup) => {
   }
 });
 
-defineExpose<Omit<ScrollableElementInstance, '$el'>>({
+defineExpose<ScrollableElementInstance>({
   setScrollDimensions,
 });
-
-function handleMounted() {
-  debugger;
-}
 </script>
 
 <template>
   <div ref="domNodeRef" class="monaco-scrollable-element" role="presentation" style="position: relative; overflow: hidden;">
-    <slot @vue:mounted="handleMounted" />
+    <slot />
 
     <HorizontalScrollbar
       ref="horizontalScrollbarRef"
@@ -134,6 +143,12 @@ function handleMounted() {
       @host-dragstart="onScrollbarDragStart"
       @host-dragend="onScrollbarDragEnd"
     />
+
+    <template v-if="useShadows">
+      <div class="shadow" :class="leftShadowClassName" />
+      <div class="shadow" :class="topShadowClassName" />
+      <div class="shadow" :class="topLeftShadowClassName" />
+    </template>
   </div>
 </template>
 

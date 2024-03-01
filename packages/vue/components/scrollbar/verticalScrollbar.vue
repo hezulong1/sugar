@@ -48,7 +48,7 @@ const scrollbarStyle = ref<CSSProperties>({
 });
 const sliderStyle = ref<CSSProperties>({
   position: 'absolute',
-  top: 0,
+  top: '0px',
   left: Math.floor((props.scrollbarSize - props.sliderSize) / 2) + 'px',
   width: props.sliderSize + 'px',
   height: undefined,
@@ -120,7 +120,7 @@ const {
   writeScrollPosition,
 }, emit);
 
-defineExpose<Omit<ScrollbarInstance, '$el'>>({
+defineExpose<ScrollbarInstance>({
   beginReveal,
   beginHide,
   render,
